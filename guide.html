@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>User Guide - LAMP Primer Visualizer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f6f6f6;
+      color: #222;
+    }
+    
+    h1 {
+      color: #3a6ea5;
+      border-bottom: 3px solid #3a6ea5;
+      padding-bottom: 10px;
+    }
+    
+    .guide-box {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border-left: 4px solid #3a6ea5;
+      box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .guide-box h2 {
+      margin-top: 0;
+      color: #3a6ea5;
+      font-size: 18px;
+    }
+    
+    .guide-box ul, .guide-box ol {
+      margin: 10px 0;
+      padding-left: 25px;
+    }
+    
+    .guide-box li {
+      margin: 8px 0;
+      line-height: 1.6;
+    }
+    
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #d63384;
+    }
+    
+    pre {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    
+    small {
+      color: #666;
+      font-size: 12px;
+    }
+    
+    .warning {
+      background: #fff3cd;
+      border-left-color: #ffc107;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 5px;
+    }
+    
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: #3a6ea5;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <a href="index.html" class="back-link">← Back to Tool</a>
+
+  <h1>📖 LAMP Primer Visualizer - User Guide</h1>
+
+  <div class="guide-box">
+    <h2>🎯 Purpose</h2>
+    <p>This tool helps you design and optimize LAMP primers by:</p>
+    <ul>
+      <li><strong>Visualizing</strong> where primers bind on your target sequence</li>
+      <li><strong>Detecting</strong> dangerous hairpin structures at 3' and 5' ends</li>
+      <li><strong>Adjusting</strong> primer boundaries interactively to eliminate problems</li>
+      <li><strong>Seeing</strong> instant feedback on changes</li>
+    </ul>
+    <p>Unlike static analysis tools, this visualizer lets you <strong>iterate and optimize</strong> your primer design in real-time.</p>
+  </div>
+
+  <div class="guide-box">
+    <h2>🚀 How to Use</h2>
+    <ol>
+      <li>
+        <strong>Paste Gene Sequence:</strong> Copy your target DNA sequence into the first text box
+        <br><small>Accepts ACGT only, case-insensitive, whitespace will be removed</small>
+      </li>
+      <li>
+        <strong>Add Primers:</strong> Enter primers in format <code>NAME=SEQUENCE</code> (one per line)
+        <br><small>Example: <code>F3=ACCTGATGCC</code></small>
+        <br><small>Supports: F3, F2, F1c, B3, B2, B1c, FIP, BIP, LoopF (or LF), LoopB (or LB)</small>
+      </li>
+      <li>
+        <strong>Click Analyze:</strong> The tool will process your input and display results
+      </li>
+      <li>
+        <strong>Check Hairpins:</strong> Look for pink (3' hairpin) or blue (5' hairpin) warnings in the table
+      </li>
+      <li>
+        <strong>Adjust Positions:</strong> Use input fields in the "Adjust Position" column to change primer boundaries
+        <br><small>Changes update instantly - no need to click Analyze again</small>
+      </li>
+      <li>
+        <strong>Hover for Details:</strong> Move your mouse over any highlighted base in the sequence to see:
+        <ul>
+          <li>Primer name and orientation</li>
+          <li>Hairpin structure details (stem length, loop size)</li>
+          <li>Bonding region types</li>
+          <li>Exact genome position</li>
+        </ul>
+      </li>
+    </ol>
+  </div>
+
+  <div class="guide-box">
+    <h2>💡 Interactive Features</h2>
+    
+    <h3>Position Adjustment</h3>
+    <p>Change the start or end position of any primer in the table:</p>
+    <ul>
+      <li>Type new values directly into the input fields</li>
+      <li>Press Enter or click outside to apply changes</li>
+      <li>Sequence extraction updates automatically</li>
+      <li>Hairpin analysis recalculates instantly</li>
+      <li>Visualization updates in real-time</li>
+    </ul>
+    
+    <h3>Mouse-Hover Tooltips</h3>
+    <p>Hover over any colored base in the sequence viewer to see detailed information about what's happening at that position.</p>
+    
+    <h3>Color Coding</h3>
+    <p><strong>Primer Colors:</strong></p>
+    <ul>
+      <li><span style="background: #90EE90; padding: 2px 6px; border-radius: 3px;">F3 - Light Green</span></li>
+      <li><span style="background: #87CEEB; padding: 2px 6px; border-radius: 3px;">F2 - Sky Blue</span></li>
+      <li><span style="background: #FFD700; padding: 2px 6px; border-radius: 3px;">F1c - Gold</span></li>
+      <li><span style="background: #FFB6C1; padding: 2px 6px; border-radius: 3px;">B3 - Light Pink</span></li>
+      <li><span style="background: #FFA500; padding: 2px 6px; border-radius: 3px;">B2 - Orange</span></li>
+      <li><span style="background: #E0BBE4; padding: 2px 6px; border-radius: 3px;">B1c - Lavender</span></li>
+      <li><span style="background: #98FB98; padding: 2px 6px; border-radius: 3px;">LoopF - Pale Green</span></li>
+      <li><span style="background: #FFDAB9; padding: 2px 6px; border-radius: 3px;">LoopB - Peach</span></li>
+    </ul>
+    
+    <p><strong>Hairpin Warning Borders:</strong></p>
+    <ul>
+      <li><span style="background: #FF1493; color: white; padding: 2px 8px; border-radius: 3px; font-weight: bold;">3′ Hairpin - Deep Pink</span> ⚠️ High priority - fix recommended</li>
+      <li><span style="background: #1E90FF; color: white; padding: 2px 8px; border-radius: 3px; font-weight: bold;">5′ Hairpin - Dodger Blue</span> ⚠️ Lower priority</li>
+    </ul>
+  </div>
+
+  <div class="guide-box">
+    <h2>🔬 Understanding Results</h2>
+    
+    <h3>Sequence Visualization</h3>
+    <p>The sequence viewer shows your gene with colored highlights for each primer. Hairpin regions have bold colored borders (pink for 3', blue for 5').</p>
+    
+    <h3>Primer Table Columns</h3>
+    <ul>
+      <li><strong>Name:</strong> Primer identifier (color-coded)</li>
+      <li><strong>Sequence:</strong> The primer sequence (for FIP/BIP, shows both parts)</li>
+      <li><strong>Start:</strong> Starting position in gene (1-indexed)</li>
+      <li><strong>End:</strong> Ending position in gene</li>
+      <li><strong>Orientation:</strong> Forward binding or Reverse Complement (RC)</li>
+      <li><strong>Hairpin:</strong> Detection status:
+        <ul>
+          <li><span style="color:green; font-weight:bold;">✓ No</span> - Safe, no hairpins detected</li>
+          <li><span style="color:#FF1493; font-weight:bold;">⚠ 3′ hairpin</span> - Dangerous 3' end folding</li>
+          <li><span style="color:#1E90FF; font-weight:bold;">⚠ 5′ hairpin</span> - 5' end folding</li>
+          <li>Can show both: <span style="color:#FF1493; font-weight:bold;">3′</span> + <span style="color:#1E90FF; font-weight:bold;">5′</span></li>
+        </ul>
+      </li>
+      <li><strong>Adjust Position:</strong> Interactive input fields for real-time optimization</li>
+    </ul>
+    
+    <h3>How to Fix Hairpins</h3>
+    <ol>
+      <li><strong>Identify the problem:</strong> Look for pink or blue warnings in the Hairpin column</li>
+      <li><strong>Hover to investigate:</strong> Mouse over the hairpin region to see stem/loop details</li>
+      <li><strong>Try adjusting:</strong> Change the end position by ±2-3 bases in the "Adjust Position" column</li>
+      <li><strong>Watch for updates:</strong> Hairpin status updates instantly as you type</li>
+      <li><strong>Iterate:</strong> Keep adjusting until the hairpin is eliminated or minimized</li>
+      <li><strong>Verify:</strong> Check that the new sequence still meets your design requirements</li>
+    </ol>
+    
+    <div class="warning">
+      <strong>⚠️ Priority:</strong> 3' hairpins are more critical than 5' hairpins because they can interfere with primer extension during PCR.
+    </div>
+  </div>
+
+  <div class="guide-box">
+    <h2>📝 Example Workflow</h2>
+    
+    <h3>Input:</h3>
+    <pre>Gene Sequence:
+ATGGCATTGTTACCAACTGGGCTTGCTCTGGGCCTCGTCAC...
+
+Primers:
+F3=ACCTGATGCC
+F2=TGGTAACAATGCCA
+FIP=GTGACGAGGCCCAGAGCAAGCCCAGTTGGTAACAATGCCA
+BIP=TGTCTTTTGTCCTGGTTTTCAC
+LF=CAGCAAGTTCAACGGCCCT</pre>
+
+    <h3>Process:</h3>
+    <ol>
+      <li><strong>Click Analyze</strong> → Tool shows FIP has a 3′ hairpin ⚠️</li>
+      <li><strong>Hover over pink region</strong> → Tooltip shows "3′ hairpin tail (stem: 4bp, loop: 6bp)"</li>
+      <li><strong>Check the sequence</strong> → Last 4bp of FIP are binding to upstream region</li>
+      <li><strong>Adjust FIP end position</strong> → Change from 250 to 248 (remove 2 bases)</li>
+      <li><strong>Hairpin recalculates</strong> → Status changes to <span style="color:green; font-weight:bold;">✓ No</span></li>
+      <li><strong>Success!</strong> → New primer sequence eliminates the hairpin</li>
+    </ol>
+    
+    <h3>Result:</h3>
+    <p>You've optimized your FIP primer to eliminate secondary structure issues, all without leaving the page or running external tools.</p>
+  </div>
+
+  <div class="guide-box">
+    <h2>❓ Troubleshooting</h2>
+    
+    <h3>Primer not found</h3>
+    <ul>
+      <li>Check that sequence matches exactly (case-insensitive)</li>
+      <li>Ensure no extra whitespace or special characters</li>
+      <li>Try searching for the reverse complement manually</li>
+    </ul>
+    
+    <h3>FIP/BIP not splitting</h3>
+    <ul>
+      <li>Each part should be 15-35 base pairs</li>
+      <li>Both parts must exist in the gene sequence</li>
+      <li>Tool tries both orientations automatically</li>
+    </ul>
+    
+    <h3>Position adjustment not working</h3>
+    <ul>
+      <li>Make sure you've clicked "Analyze" first</li>
+      <li>Positions must be within gene boundaries</li>
+      <li>Check browser console (F12) for error messages</li>
+    </ul>
+    
+    <h3>Tooltips not appearing</h3>
+    <ul>
+      <li>Hover longer (~200ms) over the highlighted base</li>
+      <li>Ensure your browser supports CSS pseudo-elements</li>
+      <li>Try zooming the page to 100%</li>
+    </ul>
+  </div>
+
+  <div class="guide-box">
+    <h2>🔬 Hairpin Detection Details</h2>
+    
+    <p><strong>What is detected:</strong></p>
+    <ul>
+      <li>Stem length: 2-6 base pairs</li>
+      <li>Loop size: 3-12 base pairs</li>
+      <li>Scans 15bp at 3' end and 5' end</li>
+    </ul>
+    
+    <p><strong>Why these parameters?</strong></p>
+    <ul>
+      <li>Short stems (2bp) can still cause issues in some conditions</li>
+      <li>Long stems (>6bp) are rare and typically caught by shorter matches</li>
+      <li>Very large loops (>12bp) are less stable and less problematic</li>
+    </ul>
+    
+    <p><strong>Both bonding regions are highlighted:</strong></p>
+    <ul>
+      <li>The 3' tail (or 5' head) that folds back</li>
+      <li>The upstream (or downstream) complement it binds to</li>
+      <li>This helps you see the complete hairpin structure</li>
+    </ul>
+  </div>
+
+  <a href="index.html" class="back-link">← Back to Tool</a>
+
+</body>
+</html>

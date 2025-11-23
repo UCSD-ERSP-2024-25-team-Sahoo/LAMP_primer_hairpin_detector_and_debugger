@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LAMP Primer Visualizer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <header>
+    <h1>LAMP Primer Visualizer & Hairpin Analyzer</h1>
+    <p class="subtitle">
+      Interactive tool for designing and debugging LAMP primers with real-time hairpin detection
+      <span style="margin-left: 15px;">|</span>
+      <a href="guide.html" target="_blank" style="color: white; margin-left: 15px; text-decoration: underline;">📖 User Guide</a>
+    </p>
+  </header>
+
+  <main>
+
+    <!-- INPUTS AT TOP -->
+    <section id="input-panel">
+      <h2>Input</h2>
+
+      <label>Gene Sequence</label>
+      <textarea id="gene-sequence" placeholder="Paste full sequence here..."></textarea>
+
+      <label>Primers</label>
+      <textarea id="primer-input" placeholder="One primer per line: F3=ACCTGA..."></textarea>
+
+      <button id="analyze-btn">Analyze</button>
+    </section>
+
+    <!-- SEQUENCE VIEW -->
+    <section class="output-section">
+      <h2>Sequence Visualization</h2>
+      <div id="sequence-viewer"> 
+        <div id="placeholder-seq">Sequence will appear here after analysis.</div>
+      </div>
+    </section>
+
+    <!-- PRIMER TABLE -->
+    <section class="output-section">
+      <h2>Primer Table</h2>
+      <table id="primer-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Sequence</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Orientation</th>
+            <th>Hairpin</th>
+            <th>Adjust Position</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- JS fills in -->
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- Load modules in correct order: algorithms → display → UI → orchestration -->
+  <script src="hairpin.js"></script>
+  <script src="sequence.js"></script>
+  <script src="ui.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
