@@ -24,6 +24,7 @@
 
       <label>Gene Sequence</label>
       <textarea id="gene-sequence" placeholder="Paste full sequence here..."></textarea>
+      <div id="char-count" style="font-size: 12px; color: #666; margin-top: 5px; text-align: right;">0 characters</div>
 
       <label>Primers</label>
       <textarea id="primer-input" placeholder="One primer per line: F3=ACCTGA..."></textarea>
@@ -47,8 +48,7 @@
           <tr>
             <th>Name</th>
             <th>Sequence</th>
-            <th>Start</th>
-            <th>End</th>
+            <th>Length (bp)</th>
             <th>Orientation</th>
             <th>Hairpin</th>
             <th>Adjust Position</th>
@@ -63,9 +63,9 @@
   </main>
 
   <!-- Load modules in correct order: algorithms → display → UI → orchestration -->
-  <script src="hairpin.js"></script>
-  <script src="sequence.js"></script>
-  <script src="ui.js"></script>
-  <script src="app.js"></script>
+  <script src="hairpin.js?v=20251205d"></script>
+  <script src="sequence.js?v=20251205d"></script>
+  <script src="ui.js?v=20251205d"></script>
+  <script src="app.js?v=20251205d"></script>
 </body>
 </html>
