@@ -24,6 +24,7 @@ Built for researchers who need transparent, flexible primer design and debugging
 - **Adjust primer boundaries** via input fields in table
 - **Real-time recalculation** - Instant hairpin analysis updates
 - **Live visualization** - Sequence highlights update dynamically
+- **Automatic validation** - Popup warnings for primer overlaps and invalid lengths
 - **Turn static analysis into iterative design**
 
 ###  Mouse-Hover Tooltips

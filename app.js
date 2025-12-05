@@ -7,6 +7,24 @@
 window.currentGene = null;
 window.currentPrimers = null;
 
+// Character counter for gene sequence (runs immediately since script is at bottom)
+const geneSeqInput = document.getElementById("gene-sequence");
+const charCountDisplay = document.getElementById("char-count");
+
+if (geneSeqInput && charCountDisplay) {
+  function updateCharCount() {
+    const text = geneSeqInput.value;
+    const count = text.length;
+    charCountDisplay.textContent = `${count.toLocaleString()} characters`;
+  }
+
+  geneSeqInput.addEventListener("input", updateCharCount);
+  geneSeqInput.addEventListener("paste", () => setTimeout(updateCharCount, 0));
+  
+  // Initialize count
+  updateCharCount();
+}
+
 document.getElementById("analyze-btn").addEventListener("click", runAnalysis);
 
 function runAnalysis() {
@@ -28,6 +46,21 @@ function runAnalysis() {
 
   // Run analysis pipeline
   attachPrimerPositions(geneSeq, primers);
+  
+  // Validate all primer lengths and collect warnings
+  let allLengthWarnings = [];
+  primers.forEach(primer => {
+    const warnings = getPrimerLengthWarnings(primer);
+    allLengthWarnings = allLengthWarnings.concat(warnings);
+  });
+  
+  // Show combined length warnings if any
+  if (allLengthWarnings.length > 0) {
+    showLengthWarning(allLengthWarnings);
+  } else {
+    clearLengthWarning();
+  }
+  
   displaySequence(geneSeq, primers);
   populatePrimerTable(geneSeq, primers);
 }

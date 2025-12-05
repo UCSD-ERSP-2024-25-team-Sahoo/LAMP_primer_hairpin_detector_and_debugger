@@ -1,3 +1,10 @@
+/* ================================================================
+   LAMP PRIMER VISUALIZER - MAIN STYLESHEET
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   GLOBAL STYLES
+   ---------------------------------------------------------------- */
 body {
   font-family: Arial, sans-serif;
   margin: 0;
@@ -5,7 +12,9 @@ body {
   color: #222;
 }
 
-/* THINNER HEADER */
+/* ----------------------------------------------------------------
+   HEADER
+   ---------------------------------------------------------------- */
 header {
   background: #3a6ea5;
   padding: 10px 20px;
@@ -35,19 +44,31 @@ header .subtitle a:hover {
   opacity: 0.8;
 }
 
+/* ----------------------------------------------------------------
+   MAIN CONTENT CONTAINER
+   ---------------------------------------------------------------- */
 main {
   padding: 20px;
   max-width: 1200px;
   margin: auto;
 }
 
-/* INPUT PANEL (TOP SECTION) */
+/* ----------------------------------------------------------------
+   INPUT PANEL (Gene Sequence & Primers)
+   ---------------------------------------------------------------- */
 #input-panel {
   background: white;
   padding: 18px;
   border-radius: 8px;
   box-shadow: 0px 0px 5px rgba(0,0,0,0.1);
   margin-bottom: 25px;
+}
+
+#input-panel label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #333;
 }
 
 #input-panel textarea {
@@ -57,6 +78,16 @@ main {
   padding: 10px;
   font-family: monospace;
   resize: vertical;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+/* Character counter below gene sequence */
+#char-count {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+  text-align: right;
 }
 
 #analyze-btn {
@@ -68,13 +99,16 @@ main {
   border-radius: 5px;
   font-size: 16px;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
 #analyze-btn:hover {
   background: #2e5481;
 }
 
-/* OUTPUT SECTIONS */
+/* ----------------------------------------------------------------
+   OUTPUT SECTIONS (Sequence Viewer & Primer Table)
+   ---------------------------------------------------------------- */
 .output-section {
   background: white;
   padding: 18px;
@@ -83,7 +117,15 @@ main {
   box-shadow: 0px 0px 5px rgba(0,0,0,0.1);
 }
 
-/* SEQUENCE VIEWER */
+.output-section h2 {
+  margin-top: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+/* ----------------------------------------------------------------
+   SEQUENCE VIEWER (Visual representation with highlights)
+   ---------------------------------------------------------------- */
 #sequence-viewer {
   background: #f0f0f0;
   padding: 15px;
@@ -92,30 +134,159 @@ main {
   overflow-x: auto;
   white-space: nowrap;
   font-family: monospace;
+  line-height: 1.8;
 }
 
 #placeholder-seq {
   opacity: 0.6;
+  font-style: italic;
 }
 
-/* PRIMER TABLE */
+/* Individual sequence bases with tooltip support */
+.sequence-base {
+  position: relative;
+  cursor: help;
+  display: inline-block;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+/* Tooltip that appears on hover */
+.sequence-base:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  margin-bottom: 5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* Tooltip arrow */
+.sequence-base:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------------
+   PRIMER TABLE (Shows primer details and controls)
+   ---------------------------------------------------------------- */
 #primer-table {
   width: 100%;
   border-collapse: collapse;
+  margin-top: 10px;
 }
 
 #primer-table th, 
 #primer-table td {
   border: 1px solid #ddd;
-  padding: 6px;
+  padding: 8px;
   font-size: 14px;
+  text-align: left;
 }
 
 #primer-table th {
-  background: #fafafa;
+  background: #f5f5f5;
   font-weight: bold;
+  color: #333;
 }
 
+#primer-table tr:hover {
+  background: #fafafa;
+}
+
+/* Position input fields in the table */
+.pos-input {
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 11px;
+  width: 60px;
+  font-family: monospace;
+}
+
+.pos-input:focus {
+  outline: 2px solid #4A90E2;
+  border-color: #4A90E2;
+}
+
+/* ----------------------------------------------------------------
+   OVERLAP WARNING POPUP (Shows when primers overlap)
+   ---------------------------------------------------------------- */
+#overlap-warning {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #ff4444;
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 10000;
+  max-width: 350px;
+  font-size: 14px;
+  animation: slideIn 0.3s ease-out;
+}
+
+/* ----------------------------------------------------------------
+   LENGTH VALIDATION WARNING (Shows when primer length is invalid)
+   ---------------------------------------------------------------- */
+#length-warning {
+  position: fixed;
+  top: 100px;  /* Below overlap warning if both appear */
+  right: 20px;
+  background: #ff9800;  /* Orange/amber color to distinguish from overlap */
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 9999;
+  max-width: 350px;
+  font-size: 14px;
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Animations for warning popup */
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+
+/* ----------------------------------------------------------------
+   UTILITY CLASSES
+   ---------------------------------------------------------------- */
 .primer-found {
   background: #c8e6c9;
   border-radius: 4px;
