@@ -221,9 +221,13 @@ function handlePositionChange(input) {
   // Validate primer length against recommended ranges
   validatePrimerLength(primer);
   
+  // Recalculate cross-dimers
+  const dimers = checkAllDimers(primers);
+  
   // Re-render everything
   displaySequence(gene, primers);
   populatePrimerTable(gene, primers);
+  populateDimerTable(dimers);
 }
 
 /* -----------------------
@@ -482,6 +486,128 @@ function clearLengthWarning() {
   if (existing) {
     existing.remove();
   }
+}
+
+/* -----------------------
+   Cross-Dimer Table Display
+   Shows primer cross-dimerization analysis in a dedicated table
+------------------------ */
+function populateDimerTable(dimers) {
+  const tbody = document.querySelector("#dimer-table tbody");
+  
+  if (!tbody) {
+    console.error("Dimer table tbody not found");
+    return;
+  }
+  
+  // Clear existing rows
+  tbody.innerHTML = "";
+  
+  // Show empty state if no dimers detected
+  if (!dimers || dimers.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `
+      <td colspan="2" style="text-align: center; color: green; font-weight: bold; padding: 20px;">
+        ✓ No cross-dimers detected
+      </td>
+    `;
+    tbody.appendChild(emptyRow);
+    return;
+  }
+  
+  // Helper function to calculate GC content percentage
+  function calculateGCContent(sequence) {
+    const gcCount = (sequence.match(/[GC]/gi) || []).length;
+    return gcCount / sequence.length;
+  }
+  
+  // Sort dimers by severity (bp count descending), then by GC content (descending)
+  const sortedDimers = [...dimers].sort((a, b) => {
+    // Primary sort: by match length (higher bp = more severe)
+    if (a.matchLength !== b.matchLength) {
+      return b.matchLength - a.matchLength;
+    }
+    
+    // Secondary sort: by GC content (higher GC = stronger binding)
+    const gcA = calculateGCContent(a.primer1_3prime);
+    const gcB = calculateGCContent(b.primer1_3prime);
+    return gcB - gcA;
+  });
+  
+  // Render each dimer
+  sortedDimers.forEach(dimer => {
+    const row = document.createElement("tr");
+    
+    // Column 1: Primer pair name
+    const pairName = `${dimer.primer1} ↔ ${dimer.primer2}`;
+    
+    // Column 2: Binding details with highlighting
+    const matchLen = dimer.matchLength;
+    
+    // Get severity color based on match length
+    let severityColor, severityBg, severityLabel;
+    if (matchLen === 3) {
+      severityColor = "#856404";
+      severityBg = "#fff3cd"; // Yellow
+      severityLabel = "3bp";
+    } else if (matchLen === 4) {
+      severityColor = "#721c24";
+      severityBg = "#f8d7da"; // Light red
+      severityLabel = "4bp";
+    } else {
+      severityColor = "#fff";
+      severityBg = "#dc3545"; // Bright red
+      severityLabel = `${matchLen}bp`;
+    }
+    
+    // Build visualization with highlighted bases
+    const primer1_3prime = dimer.primer1_3prime;
+    const primer1_3prime_rc = dimer.primer1_3prime_rc;
+    const bindingPos = dimer.bindingPos;
+    
+    // Get full sequences from global primers
+    const primers = window.currentPrimers || [];
+    const p1 = primers.find(p => p.name === dimer.primer1);
+    const p2 = primers.find(p => p.name === dimer.primer2);
+    
+    let primer1Full = p1 ? p1.seq : primer1_3prime;
+    let primer2Full = p2 ? p2.seq : primer1_3prime_rc;
+    
+    // Build primer1 sequence with highlighted 3' end
+    const p1HighlightStart = primer1Full.length - matchLen;
+    const p1Before = primer1Full.substring(0, p1HighlightStart);
+    const p1Highlight = primer1Full.substring(p1HighlightStart);
+    
+    // Build primer2 sequence with highlighted binding region
+    const p2Before = primer2Full.substring(0, bindingPos);
+    const p2Highlight = primer2Full.substring(bindingPos, bindingPos + matchLen);
+    const p2After = primer2Full.substring(bindingPos + matchLen);
+    
+    // Create binding visualization - single line with both primers
+    const bindingDetails = `
+      <div style="font-family: monospace; font-size: 12px;">
+        <strong style="color: #555;">${dimer.primer1}:</strong>
+        <span style="color: #666;">${p1Before}</span><span style="background: ${severityBg}; padding: 2px 4px; border-radius: 3px; font-weight: bold; border: 2px solid ${severityBg === '#fff3cd' ? '#ffc107' : (severityBg === '#f8d7da' ? '#f44336' : '#dc3545')}">${p1Highlight}</span>
+        <span style="margin: 0 15px; color: #999;">↔</span>
+        <strong style="color: #555;">${dimer.primer2}:</strong>
+        <span style="color: #666;">${p2Before}</span><span style="background: ${severityBg}; padding: 2px 4px; border-radius: 3px; font-weight: bold; border: 2px solid ${severityBg === '#fff3cd' ? '#ffc107' : (severityBg === '#f8d7da' ? '#f44336' : '#dc3545')}">${p2Highlight}</span><span style="color: #666;">${p2After}</span>
+      </div>
+    `;
+    
+    row.innerHTML = `
+      <td style="vertical-align: middle;">
+        <span style="font-weight: bold;">${pairName}</span>
+        <span style="background: ${severityBg}; color: ${severityColor}; padding: 3px 8px; border-radius: 4px; display: inline-block; font-size: 11px; font-weight: bold; margin-left: 10px;">
+          ${severityLabel}
+        </span>
+      </td>
+      <td style="padding: 10px;">
+        ${bindingDetails}
+      </td>
+    `;
+    
+    tbody.appendChild(row);
+  });
 }
 
 /* -----------------------

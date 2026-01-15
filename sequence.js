@@ -7,22 +7,51 @@
    Primer Colors
 ------------------------ */
 const primerColors = {
-  F3: "#90EE90",      // Light green (high contrast green)
-  F2: "#87CEEB",      // Sky blue (distinct from cyan)
-  F1c: "#FFD700",     // Gold/yellow (high visibility)
-  B3: "#FFB6C1",      // Light pink (soft but visible)
-  B2: "#FFA500",      // Orange (warm, distinct from gold)
-  B1c: "#E0BBE4",     // Lavender (purple-ish, distinct from magenta)
-  LoopF: "#98FB98",   // Pale green (different shade from F3)
-  LF: "#98FB98",      // Same as LoopF
-  LoopB: "#FFDAB9",   // Peach (warm, distinct from orange)
+  // Forward primers
+  F3: "#90EE90",      // Light green
+  F2: "#87CEEB",      // Sky blue
+  F1c: "#FFD700",     // Gold
+  FIP: "#DDA0DD",     // Plum
+  
+  // Backward primers
+  B3: "#FFB6C1",      // Light pink
+  B2: "#FFA500",      // Orange
+  B1c: "#E0BBE4",     // Lavender
+  BIP: "#B0E0E6",     // Powder blue
+  
+  // Loop primers
+  LoopF: "#6f8e6fff",   // Pale green
+  LF: "#6f8e6fff",      // Same as LoopF
+  LoopB: "#FFDAB9",   // Peach
   LB: "#FFDAB9",      // Same as LoopB
-  FIP: "#DDA0DD",     // Plum (purple-pink, stands out)
-  BIP: "#B0E0E6",     // Powder blue (light blue, distinct from sky blue)
 };
 
 function getPrimerColor(type) {
-  return primerColors[type] || "#ffccff";  // Light pink for unknown
+  // Normalize the type (case-insensitive matching)
+  const normalizedType = type ? type.toUpperCase() : '';
+  
+  // Direct match
+  if (primerColors[type]) {
+    return primerColors[type];
+  }
+  
+  // Case-insensitive match
+  const matchedKey = Object.keys(primerColors).find(
+    key => key.toUpperCase() === normalizedType
+  );
+  
+  if (matchedKey) {
+    return primerColors[matchedKey];
+  }
+  
+  // Generate unique color for unknown primers based on hash
+  // This ensures even unknown primers get distinct colors
+  const hash = type.split('').reduce((acc, char) => {
+    return char.charCodeAt(0) + ((acc << 5) - acc);
+  }, 0);
+  
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 75%)`; // HSL for consistent brightness/saturation
 }
 
 /* -----------------------

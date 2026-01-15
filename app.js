@@ -45,7 +45,7 @@ function runAnalysis() {
   window.currentPrimers = primers;
 
   // Run analysis pipeline
-  attachPrimerPositions(geneSeq, primers);
+  const dimers = attachPrimerPositions(geneSeq, primers);
   
   // Validate all primer lengths and collect warnings
   let allLengthWarnings = [];
@@ -63,6 +63,7 @@ function runAnalysis() {
   
   displaySequence(geneSeq, primers);
   populatePrimerTable(geneSeq, primers);
+  populateDimerTable(dimers);
 }
 
 /* -----------------------

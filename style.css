@@ -285,6 +285,33 @@ main {
 }
 
 /* ----------------------------------------------------------------
+   DIMER TABLE (Cross-dimerization analysis)
+   ---------------------------------------------------------------- */
+#dimer-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+#dimer-table th,
+#dimer-table td {
+  border: 1px solid #ddd;
+  padding: 12px;
+  font-size: 14px;
+  text-align: left;
+}
+
+#dimer-table th {
+  background: #f5f5f5;
+  font-weight: bold;
+  color: #333;
+}
+
+#dimer-table tr:hover {
+  background: #fafafa;
+}
+
+/* ----------------------------------------------------------------
    UTILITY CLASSES
    ---------------------------------------------------------------- */
 .primer-found {
