@@ -208,6 +208,94 @@ function splitInnerPrimer(innerPrimer, gene, isFIP) {
 }
 
 /* -----------------------
+   Cross-Dimer Detection
+   Checks for 3' end complementarity between two primers
+------------------------ */
+function checkDimer(p1Name, p1Seq, p2Name, p2Seq, minMatch = 3) {
+  p1Seq = p1Seq.toUpperCase();
+  p2Seq = p2Seq.toUpperCase();
+  
+  const dimers = [];
+  
+  // Scan different lengths of 3' ends (from 3bp to 8bp)
+  for (let matchLen = 8; matchLen >= minMatch; matchLen--) {
+    // Check p1's 3' end binding to p2
+    if (p1Seq.length >= matchLen) {
+      const p1_3prime = p1Seq.slice(-matchLen);
+      const p1_3prime_rc = revcomp(p1_3prime);
+      const idxInP2 = p2Seq.indexOf(p1_3prime_rc);
+      
+      if (idxInP2 !== -1) {
+        dimers.push({
+          primer1: p1Name,
+          primer2: p2Name,
+          primer1_3prime: p1_3prime,
+          primer1_3prime_rc: p1_3prime_rc,
+          bindingPos: idxInP2,
+          matchLength: matchLen,
+          direction: "p1_to_p2"
+        });
+        // Return longest match found for this direction
+        break;
+      }
+    }
+  }
+  
+  // Check p2's 3' end binding to p1
+  for (let matchLen = 8; matchLen >= minMatch; matchLen--) {
+    if (p2Seq.length >= matchLen) {
+      const p2_3prime = p2Seq.slice(-matchLen);
+      const p2_3prime_rc = revcomp(p2_3prime);
+      const idxInP1 = p1Seq.indexOf(p2_3prime_rc);
+      
+      if (idxInP1 !== -1) {
+        dimers.push({
+          primer1: p2Name,
+          primer2: p1Name,
+          primer1_3prime: p2_3prime,
+          primer1_3prime_rc: p2_3prime_rc,
+          bindingPos: idxInP1,
+          matchLength: matchLen,
+          direction: "p2_to_p1"
+        });
+        // Return longest match found for this direction
+        break;
+      }
+    }
+  }
+  
+  return dimers;
+}
+
+/* -----------------------
+   Check All Cross-Dimers
+   Analyzes all primer pairs for potential dimerization
+------------------------ */
+function checkAllDimers(primers) {
+  const allDimers = [];
+  
+  // Check all unique pairs (i, j where i < j)
+  for (let i = 0; i < primers.length; i++) {
+    for (let j = i + 1; j < primers.length; j++) {
+      const p1 = primers[i];
+      const p2 = primers[j];
+      
+      // Get sequences - for FIP/BIP use full sequence
+      const p1Seq = p1.seq;
+      const p2Seq = p2.seq;
+      
+      const dimers = checkDimer(p1.name, p1Seq, p2.name, p2Seq);
+      
+      if (dimers.length > 0) {
+        allDimers.push(...dimers);
+      }
+    }
+  }
+  
+  return allDimers;
+}
+
+/* -----------------------
    Attach Primer Positions to Gene
    Finds where each primer binds and detects hairpins
 ------------------------ */
@@ -278,4 +366,8 @@ function attachPrimerPositions(gene, primers) {
     p.hairpin5 = hp5;
     p.hasHairpin = !!(hp3 || hp5);
   }
+  
+  // Check for cross-dimers between all primers
+  const dimers = checkAllDimers(primers);
+  return dimers;
 }
