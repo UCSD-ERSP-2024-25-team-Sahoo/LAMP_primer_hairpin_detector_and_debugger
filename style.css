@@ -107,6 +107,105 @@ main {
 }
 
 /* ----------------------------------------------------------------
+   EXON JUNCTION PANEL (Collapsible Controls)
+   ---------------------------------------------------------------- */
+#exon-junction-panel {
+  margin-top: 20px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+#exon-junction-panel summary {
+  cursor: pointer;
+  font-weight: 400;
+  color: #333;
+  padding: 5px;
+  user-select: none;
+}
+
+#exon-junction-panel summary:hover {
+  color: #3a6ea5;
+}
+
+.junction-controls {
+  margin-top: 10px;
+}
+
+.junction-controls label {
+  display: block;
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: normal;
+}
+
+#junction-input {
+  width: calc(100% - 20px);
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.small-btn {
+  padding: 6px 12px;
+  margin-right: 8px;
+  background: #5a8fc4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.small-btn:hover {
+  background: #4a7fb4;
+}
+
+#junction-list {
+  margin-top: 10px;
+  min-height: 20px;
+}
+
+.no-junctions {
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+  margin: 0;
+}
+
+.junction-badge {
+  display: inline-block;
+  background: #e8f4f8;
+  border: 1px solid #3a6ea5;
+  padding: 4px 8px;
+  margin: 3px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: #333;
+}
+
+.remove-junction-btn {
+  background: none;
+  border: none;
+  color: #d32f2f;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 5px;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.remove-junction-btn:hover {
+  color: #b71c1c;
+}
+
+/* ----------------------------------------------------------------
    OUTPUT SECTIONS (Sequence Viewer & Primer Table)
    ---------------------------------------------------------------- */
 .output-section {
@@ -181,6 +280,23 @@ main {
   border-top-color: rgba(0, 0, 0, 0.9);
   z-index: 1000;
   pointer-events: none;
+}
+
+/* Exon junction markers (thin red lines) */
+.exon-junction {
+  display: inline-block;
+  width: 1px;
+  height: 2.5em;
+  background: #FF0000;
+  margin: 0 1px;
+  vertical-align: text-bottom;
+  cursor: help;
+  position: relative;
+}
+
+.exon-junction:hover {
+  background: #CC0000;
+  width: 2px;
 }
 
 /* ----------------------------------------------------------------

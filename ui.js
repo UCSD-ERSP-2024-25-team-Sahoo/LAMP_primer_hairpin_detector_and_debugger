@@ -11,6 +11,116 @@
    ================================================================ */
 
 /* -----------------------
+   Exon Junction Management
+------------------------ */
+
+// Initialize exon junction controls
+function initExonJunctionControls() {
+  const addBtn = document.getElementById('add-junctions-btn');
+  const clearBtn = document.getElementById('clear-junctions-btn');
+  const input = document.getElementById('junction-input');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const inputValue = input.value.trim();
+      if (!inputValue) return;
+      
+      // Parse comma-separated values
+      const positions = inputValue.split(',').map(s => s.trim()).filter(s => s);
+      
+      positions.forEach(posStr => {
+        const pos = parseInt(posStr, 10);
+        if (!isNaN(pos) && pos > 0) {
+          addExonJunction(pos);
+        }
+      });
+      
+      input.value = '';
+      renderJunctionList();
+      
+      // Re-run analysis if we have data
+      if (window.currentGene && window.currentPrimers) {
+        displaySequence(window.currentGene, window.currentPrimers, window.exonJunctions);
+      }
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      window.exonJunctions = [];
+      renderJunctionList();
+      
+      // Re-run visualization
+      if (window.currentGene && window.currentPrimers) {
+        displaySequence(window.currentGene, window.currentPrimers, window.exonJunctions);
+      }
+    });
+  }
+
+  // Allow Enter key to add junctions
+  if (input) {
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        addBtn.click();
+      }
+    });
+  }
+}
+
+function addExonJunction(position) {
+  // Validate position
+  if (window.currentGene && position > window.currentGene.length) {
+    alert(`Position ${position} exceeds sequence length (${window.currentGene.length}bp)`);
+    return;
+  }
+  
+  // Avoid duplicates
+  if (!window.exonJunctions.includes(position)) {
+    window.exonJunctions.push(position);
+    window.exonJunctions.sort((a, b) => a - b); // Keep sorted
+  }
+}
+
+function removeExonJunction(position) {
+  const index = window.exonJunctions.indexOf(position);
+  if (index > -1) {
+    window.exonJunctions.splice(index, 1);
+  }
+  renderJunctionList();
+  
+  // Re-run visualization
+  if (window.currentGene && window.currentPrimers) {
+    displaySequence(window.currentGene, window.currentPrimers, window.exonJunctions);
+  }
+}
+
+function renderJunctionList() {
+  const listContainer = document.getElementById('junction-list');
+  if (!listContainer) return;
+  
+  if (window.exonJunctions.length === 0) {
+    listContainer.innerHTML = '<p class="no-junctions">No junctions added yet</p>';
+    return;
+  }
+  
+  const badges = window.exonJunctions.map(pos => 
+    `<span class="junction-badge">
+      Position ${pos}
+      <button class="remove-junction-btn" onclick="removeExonJunction(${pos})">&times;</button>
+    </span>`
+  ).join('');
+  
+  listContainer.innerHTML = badges;
+}
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initExonJunctionControls);
+} else {
+  initExonJunctionControls();
+}
+
+/* -----------------------
    Primer Table Rendering with Interactive Edit Controls
    
    Generates the visual table showing all primer information:
@@ -225,7 +335,7 @@ function handlePositionChange(input) {
   const dimers = checkAllDimers(primers);
   
   // Re-render everything
-  displaySequence(gene, primers);
+  displaySequence(gene, primers, window.exonJunctions);
   populatePrimerTable(gene, primers);
   populateDimerTable(dimers);
 }

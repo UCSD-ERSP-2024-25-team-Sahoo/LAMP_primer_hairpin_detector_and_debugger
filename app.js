@@ -6,6 +6,7 @@
 // Global state for real-time updates
 window.currentGene = null;
 window.currentPrimers = null;
+window.exonJunctions = [];
 
 // Character counter for gene sequence (runs immediately since script is at bottom)
 const geneSeqInput = document.getElementById("gene-sequence");
@@ -61,7 +62,7 @@ function runAnalysis() {
     clearLengthWarning();
   }
   
-  displaySequence(geneSeq, primers);
+  displaySequence(geneSeq, primers, window.exonJunctions);
   populatePrimerTable(geneSeq, primers);
   populateDimerTable(dimers);
 }
