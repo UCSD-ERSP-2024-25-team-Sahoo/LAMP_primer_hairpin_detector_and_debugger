@@ -29,6 +29,21 @@
       <label>Primers</label>
       <textarea id="primer-input" placeholder="One primer per line: F3=ACCTGA..."></textarea>
 
+      <!-- Exon Junction Markers (Optional) -->
+      <details id="exon-junction-panel">
+        <summary>Exon Junction Markers (Optional)</summary>
+        <div class="junction-controls">
+          <label>Enter junction positions (comma-separated)</label>
+          <input type="text" id="junction-input" placeholder="e.g., 87, 120, 400" />
+          <button id="add-junctions-btn" class="small-btn">Add Junctions</button>
+          <button id="clear-junctions-btn" class="small-btn">Clear All</button>
+          
+          <div id="junction-list" style="margin-top: 10px;">
+            <!-- Junction badges will appear here -->
+          </div>
+        </div>
+      </details>
+
       <button id="analyze-btn">Analyze</button>
     </section>
 

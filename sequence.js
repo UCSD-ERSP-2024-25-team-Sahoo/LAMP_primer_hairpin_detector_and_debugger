@@ -57,7 +57,7 @@ function getPrimerColor(type) {
 /* -----------------------
    Sequence Visualization with Tooltips
 ------------------------ */
-function displaySequence(gene, primers) {
+function displaySequence(gene, primers, exonJunctions = []) {
   const viewer = document.getElementById("sequence-viewer");
   viewer.innerHTML = "";
 
@@ -316,24 +316,32 @@ function displaySequence(gene, primers) {
     }
   });
 
-  // Render with tooltips
-  const html = chars.map(charObj => {
+  // Render with tooltips and exon junction markers
+  let html = '';
+  chars.forEach((charObj, idx) => {
+    // Render the base
     if (charObj.highlights.length === 0) {
-      return charObj.base;
+      html += charObj.base;
+    } else {
+      // Use the top-most (last added) highlight for visual styling
+      const topHighlight = charObj.highlights[charObj.highlights.length - 1];
+      const border = topHighlight.borderColor ? 
+        `border: 2px solid ${topHighlight.borderColor}; font-weight: bold;` : "";
+      
+      // Generate tooltip content from ALL highlights at this position
+      const tooltipText = generateTooltip(charObj.highlights, charObj.index);
+      
+      html += `<span class="sequence-base" 
+                    style="background:${topHighlight.color}; padding:2px; border-radius:3px; ${border}" 
+                    data-tooltip="${tooltipText}">${charObj.base}</span>`;
     }
     
-    // Use the top-most (last added) highlight for visual styling
-    const topHighlight = charObj.highlights[charObj.highlights.length - 1];
-    const border = topHighlight.borderColor ? 
-      `border: 2px solid ${topHighlight.borderColor}; font-weight: bold;` : "";
-    
-    // Generate tooltip content from ALL highlights at this position
-    const tooltipText = generateTooltip(charObj.highlights, charObj.index);
-    
-    return `<span class="sequence-base" 
-                  style="background:${topHighlight.color}; padding:2px; border-radius:3px; ${border}" 
-                  data-tooltip="${tooltipText}">${charObj.base}</span>`;
-  }).join("");
+    // Add exon junction marker after this base if position matches
+    // Junction at position N means: junction appears after base at index N-1
+    if (exonJunctions.includes(idx + 1)) {
+      html += `<span class="exon-junction" data-position="${idx + 1}" title="Exon junction at position ${idx + 1}"></span>`;
+    }
+  });
 
   viewer.innerHTML = html;
 }
