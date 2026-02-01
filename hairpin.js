@@ -16,6 +16,171 @@ function revcomp(seq) {
 }
 
 /* -----------------------
+   Thermodynamic Calculations
+------------------------ */
+
+// Calculate GC content percentage
+function calculateGCContent(seq) {
+  if (!seq || seq.length === 0) return 0;
+  seq = seq.toUpperCase();
+  const gcCount = (seq.match(/[GC]/g) || []).length;
+  return (gcCount / seq.length) * 100;
+}
+
+// Calculate melting temperature using basic formula
+// Tm = 64.9 + 0.41 × GC% - 500/length
+function calculateTm(seq) {
+  if (!seq || seq.length === 0) return 0;
+  const gc = calculateGCContent(seq);
+  const length = seq.length;
+  return 64.9 + (0.41 * gc) - (500 / length);
+}
+
+// Nearest-neighbor thermodynamic parameters (ΔG values at 37°C in kcal/mol)
+// Reference: SantaLucia (1998) and Allawi & SantaLucia (1997)
+const NN_DG = {
+  'AA': -1.00, 'TT': -1.00,
+  'AT': -0.88, 'TA': -0.58,
+  'CA': -1.45, 'TG': -1.45,
+  'GT': -1.44, 'AC': -1.44,
+  'CT': -1.28, 'AG': -1.28,
+  'GA': -1.30, 'TC': -1.30,
+  'CG': -2.17, 'GC': -2.24,
+  'GG': -1.84, 'CC': -1.84
+};
+
+// Calculate Gibbs free energy (ΔG) for a sequence
+// Uses nearest-neighbor model
+function calculateDeltaG(seq) {
+  if (!seq || seq.length < 2) return 0;
+  seq = seq.toUpperCase();
+  
+  let deltaG = 0;
+  
+  // Sum up nearest-neighbor contributions
+  for (let i = 0; i < seq.length - 1; i++) {
+    const dinucleotide = seq[i] + seq[i + 1];
+    if (NN_DG[dinucleotide]) {
+      deltaG += NN_DG[dinucleotide];
+    }
+  }
+  
+  // Add initiation penalty (approximately +0.2 kcal/mol for terminal AT, 0 for GC)
+  const first = seq[0];
+  const last = seq[seq.length - 1];
+  if (first === 'A' || first === 'T') deltaG += 0.2;
+  if (last === 'A' || last === 'T') deltaG += 0.2;
+  
+  return deltaG;
+}
+
+// Validate primer thermodynamics with LAMP-specific constraints
+function validatePrimerThermodynamics(primer) {
+  const warnings = [];
+  const info = {};
+  
+  // Determine primer type from name
+  const primerName = primer.name.toUpperCase();
+  let primerType = 'unknown';
+  
+  if (primerName === 'F3' || primerName === 'B3') primerType = 'outer';
+  else if (primerName === 'F2' || primerName === 'B2') primerType = 'outer';
+  else if (primerName.includes('F1C') || primerName.includes('B1C')) primerType = 'inner_part';
+  else if (primerName === 'LF' || primerName === 'LOOPF' || primerName === 'LB' || primerName === 'LOOPB') primerType = 'loop';
+  else if (primerName === 'FIP' || primerName === 'BIP') primerType = 'inner_full';
+  
+  // For FIP/BIP, analyze both parts separately
+  if (primer.isInner && primer.left && primer.right) {
+    // Analyze left part (F1c/B1c)
+    const leftGC = calculateGCContent(primer.left);
+    const leftTm = calculateTm(primer.left);
+    const left5DG = calculateDeltaG(primer.left.substring(0, Math.min(6, primer.left.length)));
+    const left3DG = calculateDeltaG(primer.left.substring(Math.max(0, primer.left.length - 6)));
+    
+    info.leftGC = leftGC;
+    info.leftTm = leftTm;
+    info.left5DG = left5DG;
+    info.left3DG = left3DG;
+    
+    // Validate left part (F1c/B1c should be 64-66°C)
+    if (leftGC < 40 || leftGC > 60) {
+      warnings.push(`${primer.leftType} GC content ${leftGC.toFixed(1)}% outside 40-60% range`);
+    }
+    if (leftTm < 64 || leftTm > 66) {
+      warnings.push(`${primer.leftType} Tm ${leftTm.toFixed(1)}°C outside 64-66°C range`);
+    }
+    if (left5DG > -4.0) {
+      warnings.push(`${primer.leftType} 5' end ΔG ${left5DG.toFixed(2)} > -4.0 kcal/mol (weak)`);
+    }
+    if (left3DG > -4.0) {
+      warnings.push(`${primer.leftType} 3' end ΔG ${left3DG.toFixed(2)} > -4.0 kcal/mol (weak)`);
+    }
+    
+    // Analyze right part (F2/B2)
+    const rightGC = calculateGCContent(primer.right);
+    const rightTm = calculateTm(primer.right);
+    const right5DG = calculateDeltaG(primer.right.substring(0, Math.min(6, primer.right.length)));
+    const right3DG = calculateDeltaG(primer.right.substring(Math.max(0, primer.right.length - 6)));
+    
+    info.rightGC = rightGC;
+    info.rightTm = rightTm;
+    info.right5DG = right5DG;
+    info.right3DG = right3DG;
+    
+    // Validate right part (F2/B2 should be 59-61°C)
+    if (rightGC < 40 || rightGC > 60) {
+      warnings.push(`${primer.rightType} GC content ${rightGC.toFixed(1)}% outside 40-60% range`);
+    }
+    if (rightTm < 59 || rightTm > 61) {
+      warnings.push(`${primer.rightType} Tm ${rightTm.toFixed(1)}°C outside 59-61°C range`);
+    }
+    if (right5DG > -4.0) {
+      warnings.push(`${primer.rightType} 5' end ΔG ${right5DG.toFixed(2)} > -4.0 kcal/mol (weak)`);
+    }
+    if (right3DG > -4.0) {
+      warnings.push(`${primer.rightType} 3' end ΔG ${right3DG.toFixed(2)} > -4.0 kcal/mol (weak)`);
+    }
+  } else {
+    // Regular primer or loop primer
+    const gc = calculateGCContent(primer.seq);
+    const tm = calculateTm(primer.seq);
+    const dg5 = calculateDeltaG(primer.seq.substring(0, Math.min(6, primer.seq.length)));
+    const dg3 = calculateDeltaG(primer.seq.substring(Math.max(0, primer.seq.length - 6)));
+    
+    info.gc = gc;
+    info.tm = tm;
+    info.dg5 = dg5;
+    info.dg3 = dg3;
+    
+    // GC content validation (applies to all)
+    if (gc < 40 || gc > 60) {
+      warnings.push(`GC content ${gc.toFixed(1)}% outside 40-60% range`);
+    }
+    
+    // Tm validation based on primer type
+    if (primerType === 'outer') {
+      if (tm < 59 || tm > 61) {
+        warnings.push(`Tm ${tm.toFixed(1)}°C outside 59-61°C range for outer primers`);
+      }
+    } else if (primerType === 'loop') {
+      if (tm < 64 || tm > 66) {
+        warnings.push(`Tm ${tm.toFixed(1)}°C outside 64-66°C range for loop primers`);
+      }
+    }
+    
+    // ΔG validation for end stability
+    if (dg5 > -4.0) {
+      warnings.push(`5' end ΔG ${dg5.toFixed(2)} > -4.0 kcal/mol (weak binding)`);
+    }
+    if (dg3 > -4.0) {
+      warnings.push(`3' end ΔG ${dg3.toFixed(2)} > -4.0 kcal/mol (weak binding)`);
+    }
+  }
+  
+  return { warnings, info };
+}
+
+/* -----------------------
    Hairpin Detection (3' and 5' ends)
    Adopts the proven Python logic
 ------------------------ */
