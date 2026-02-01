@@ -68,21 +68,42 @@ function initExonJunctionControls() {
 }
 
 function addExonJunction(position) {
-  // Validate position
-  if (window.currentGene && position > window.currentGene.length) {
-    alert(`Position ${position} exceeds sequence length (${window.currentGene.length}bp)`);
+  // Get sequence offset
+  const offsetInput = document.getElementById('sequence-offset');
+  const sequenceStartPos = offsetInput ? parseInt(offsetInput.value) || 1 : 1;
+  
+  // Calculate adjusted position: original position - sequence start + 1
+  // Example: if sequence starts at 500 and junction is at 700, adjusted = 700 - 500 + 1 = 201
+  const adjustedPosition = position - sequenceStartPos + 1;
+  
+  // Validate adjusted position
+  if (adjustedPosition < 1) {
+    alert(`Junction position ${position} is before your sequence start (${sequenceStartPos}). Adjusted position would be ${adjustedPosition}.`);
     return;
   }
   
-  // Avoid duplicates
-  if (!window.exonJunctions.includes(position)) {
-    window.exonJunctions.push(position);
-    window.exonJunctions.sort((a, b) => a - b); // Keep sorted
+  if (window.currentGene && adjustedPosition > window.currentGene.length) {
+    alert(`Adjusted position ${adjustedPosition} (from original ${position}) exceeds sequence length (${window.currentGene.length}bp)`);
+    return;
+  }
+  
+  // Store both original and adjusted positions for display
+  const junctionData = {
+    original: position,
+    adjusted: adjustedPosition,
+    offset: sequenceStartPos
+  };
+  
+  // Check if already exists (by adjusted position)
+  const exists = window.exonJunctions.some(j => j.adjusted === adjustedPosition);
+  if (!exists) {
+    window.exonJunctions.push(junctionData);
+    window.exonJunctions.sort((a, b) => a.adjusted - b.adjusted); // Keep sorted by adjusted position
   }
 }
 
-function removeExonJunction(position) {
-  const index = window.exonJunctions.indexOf(position);
+function removeExonJunction(adjustedPosition) {
+  const index = window.exonJunctions.findIndex(j => j.adjusted === adjustedPosition);
   if (index > -1) {
     window.exonJunctions.splice(index, 1);
   }
@@ -103,12 +124,17 @@ function renderJunctionList() {
     return;
   }
   
-  const badges = window.exonJunctions.map(pos => 
-    `<span class="junction-badge">
-      Position ${pos}
-      <button class="remove-junction-btn" onclick="removeExonJunction(${pos})">&times;</button>
-    </span>`
-  ).join('');
+  const badges = window.exonJunctions.map(jData => {
+    // Show adjusted position prominently, with original in smaller text if different
+    const displayText = jData.offset === 1 || jData.original === jData.adjusted
+      ? `Position ${jData.adjusted}`
+      : `Position ${jData.adjusted} <span style="font-size: 10px; color: #666;">(ref: ${jData.original})</span>`;
+    
+    return `<span class="junction-badge">
+      ${displayText}
+      <button class="remove-junction-btn" onclick="removeExonJunction(${jData.adjusted})">&times;</button>
+    </span>`;
+  }).join('');
   
   listContainer.innerHTML = badges;
 }

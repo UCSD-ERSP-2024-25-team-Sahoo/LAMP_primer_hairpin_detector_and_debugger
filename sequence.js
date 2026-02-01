@@ -338,8 +338,20 @@ function displaySequence(gene, primers, exonJunctions = []) {
     
     // Add exon junction marker after this base if position matches
     // Junction at position N means: junction appears after base at index N-1
-    if (exonJunctions.includes(idx + 1)) {
-      html += `<span class="exon-junction" data-position="${idx + 1}" title="Exon junction at position ${idx + 1}"></span>`;
+    const junctionAtThisPos = exonJunctions.find(j => {
+      // Handle both old format (numbers) and new format (objects)
+      const pos = typeof j === 'number' ? j : j.adjusted;
+      return pos === idx + 1;
+    });
+    
+    if (junctionAtThisPos) {
+      const adjustedPos = typeof junctionAtThisPos === 'number' ? junctionAtThisPos : junctionAtThisPos.adjusted;
+      const originalPos = typeof junctionAtThisPos === 'number' ? junctionAtThisPos : junctionAtThisPos.original;
+      const tooltipText = originalPos === adjustedPos 
+        ? `Exon junction at position ${adjustedPos}`
+        : `Exon junction at position ${adjustedPos} (reference position: ${originalPos})`;
+      
+      html += `<span class="exon-junction" data-position="${adjustedPos}" title="${tooltipText}"></span>`;
     }
   });
 
