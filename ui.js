@@ -47,21 +47,20 @@ function initExonJunctionControls() {
 
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
+      // Clear all junctions
       window.exonJunctions = [];
       renderJunctionList();
-      
-      // Re-run visualization
+      // Re-render visualization
       if (window.currentGene && window.currentPrimers) {
         displaySequence(window.currentGene, window.currentPrimers, window.exonJunctions);
       }
     });
   }
 
-  // Allow Enter key to add junctions
   if (input) {
     input.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        addBtn.click();
+        addBtn && addBtn.click();
       }
     });
   }
@@ -201,11 +200,22 @@ function populatePrimerTable(gene, primers) {
           <div style="color: ${rightGCColor};">${p.rightType}: ${thermoInfo.rightGC.toFixed(1)}%</div>
         </div>`;
         
-        // Display Tm for both parts
-        const leftTmColor = (thermoInfo.leftTm >= 64 && thermoInfo.leftTm <= 66) ? 'green' : 'red';
-        const rightTmColor = (thermoInfo.rightTm >= 59 && thermoInfo.rightTm <= 61) ? 'green' : 'red';
-        const leftTmWarning = leftTmColor === 'red' ? `${p.leftType} Tm ${thermoInfo.leftTm.toFixed(1)}°C is outside optimal 64-66°C range` : `${p.leftType} Tm ${thermoInfo.leftTm.toFixed(1)}°C is within optimal range`;
-        const rightTmWarning = rightTmColor === 'red' ? `${p.rightType} Tm ${thermoInfo.rightTm.toFixed(1)}°C is outside optimal 59-61°C range` : `${p.rightType} Tm ${thermoInfo.rightTm.toFixed(1)}°C is within optimal range`;
+        // Display Tm for both parts (ranges depend on orientation)
+        const isBIP = p.name && p.name.toUpperCase() === 'BIP';
+        const leftTmInRange = isBIP
+          ? (thermoInfo.leftTm >= 59 && thermoInfo.leftTm <= 61) // BIP-left is forward in testing mode
+          : (thermoInfo.leftTm >= 64 && thermoInfo.leftTm <= 66);
+        const rightTmInRange = isBIP
+          ? (thermoInfo.rightTm >= 64 && thermoInfo.rightTm <= 66) // BIP-right is RC in testing mode
+          : (thermoInfo.rightTm >= 59 && thermoInfo.rightTm <= 61);
+        const leftTmColor = leftTmInRange ? 'green' : 'red';
+        const rightTmColor = rightTmInRange ? 'green' : 'red';
+        const leftTmWarning = leftTmColor === 'red'
+          ? `${p.leftType} Tm ${thermoInfo.leftTm.toFixed(1)}°C is outside optimal ${isBIP ? '59-61°C' : '64-66°C'} range`
+          : `${p.leftType} Tm ${thermoInfo.leftTm.toFixed(1)}°C is within optimal range`;
+        const rightTmWarning = rightTmColor === 'red'
+          ? `${p.rightType} Tm ${thermoInfo.rightTm.toFixed(1)}°C is outside optimal ${isBIP ? '64-66°C' : '59-61°C'} range`
+          : `${p.rightType} Tm ${thermoInfo.rightTm.toFixed(1)}°C is within optimal range`;
         tmDisplay = `<div style="font-size: 10px;" title="${leftTmWarning}&#10;${rightTmWarning}">
           <div style="color: ${leftTmColor};">${p.leftType}: ${thermoInfo.leftTm.toFixed(1)}°</div>
           <div style="color: ${rightTmColor};">${p.rightType}: ${thermoInfo.rightTm.toFixed(1)}°</div>
@@ -225,7 +235,10 @@ function populatePrimerTable(gene, primers) {
           <div>${p.rightType}: <span style="color: ${right5Color};">${thermoInfo.right5DG.toFixed(1)}</span> / <span style="color: ${right3Color};">${thermoInfo.right3DG.toFixed(1)}</span></div>
         </div>`;
         
-        orientDisplay = `${p.leftType}:RC, ${p.rightType}:Fwd`;
+        // Orientation label depends on primer type
+        orientDisplay = (p.name && p.name.toUpperCase() === 'BIP')
+          ? `${p.leftType}:Fwd, ${p.rightType}:RC`
+          : `${p.leftType}:RC, ${p.rightType}:Fwd`;
         
         // Add controls for FIP/BIP parts
         controlsDisplay = `
@@ -382,8 +395,10 @@ function handlePositionChange(input) {
       }
       // Extract new sequence for left part
       primer.left = gene.substring(primer.leftStart, primer.leftEnd);
-      // Reverse complement since left part binds as RC
-      primer.left = revcomp(primer.left);
+      // Orientation: FIP-left is RC, BIP-left is Fwd (testing mode)
+      if (primer.name.toUpperCase() !== 'BIP') {
+        primer.left = revcomp(primer.left);
+      }
     } else if (part === 'right') {
       if (pos === 'start') {
         primer.rightStart = newValue - 1;
@@ -392,10 +407,38 @@ function handlePositionChange(input) {
       }
       // Extract new sequence for right part (binds forward)
       primer.right = gene.substring(primer.rightStart, primer.rightEnd);
+      // Orientation: FIP-right is Fwd, BIP-right is RC (testing mode)
+      if (primer.name.toUpperCase() === 'BIP') {
+        primer.right = revcomp(primer.right);
+      }
     }
     
     // Recombine full FIP/BIP sequence
     primer.seq = primer.left + primer.right;
+
+    // Enforce orientation per primer type
+    const bindsForward = (seq) => gene.indexOf(seq) !== -1;
+    const bindsRC = (seq) => gene.indexOf(revcomp(seq)) !== -1;
+    if (primer.name.toUpperCase() === 'FIP') {
+      // Ensure left=RC, right=Fwd
+      if (bindsForward(primer.left) && bindsRC(primer.right)) {
+        const tmpSeq = primer.left; primer.left = primer.right; primer.right = tmpSeq;
+        const tmpStart = primer.leftStart; const tmpEnd = primer.leftEnd;
+        primer.leftStart = primer.rightStart; primer.leftEnd = primer.rightEnd;
+        primer.rightStart = tmpStart; primer.rightEnd = tmpEnd;
+      }
+    } else if (primer.name.toUpperCase() === 'BIP') {
+      // Testing mode: Ensure left=Fwd, right=RC
+      if (bindsRC(primer.left) && bindsForward(primer.right)) {
+        const tmpSeq = primer.left; primer.left = primer.right; primer.right = tmpSeq;
+        const tmpStart = primer.leftStart; const tmpEnd = primer.leftEnd;
+        primer.leftStart = primer.rightStart; primer.leftEnd = primer.rightEnd;
+        primer.rightStart = tmpStart; primer.rightEnd = tmpEnd;
+      }
+    }
+    // Normalize names strictly
+    if (primer.name.toUpperCase() === 'FIP') { primer.leftType = 'F1c'; primer.rightType = 'F2'; }
+    else if (primer.name.toUpperCase() === 'BIP') { primer.leftType = 'B1c'; primer.rightType = 'B2'; }
     
   } else {
     // Regular primer

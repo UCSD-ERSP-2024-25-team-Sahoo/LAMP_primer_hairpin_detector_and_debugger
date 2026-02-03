@@ -91,6 +91,7 @@ function validatePrimerThermodynamics(primer) {
   
   // For FIP/BIP, analyze both parts separately
   if (primer.isInner && primer.left && primer.right) {
+    const isBIP = primer.name && primer.name.toUpperCase() === 'BIP';
     // Analyze left part (F1c/B1c)
     const leftGC = calculateGCContent(primer.left);
     const leftTm = calculateTm(primer.left);
@@ -102,12 +103,20 @@ function validatePrimerThermodynamics(primer) {
     info.left5DG = left5DG;
     info.left3DG = left3DG;
     
-    // Validate left part (F1c/B1c should be 64-66°C)
+    // Validate left part Tm based on orientation
     if (leftGC < 40 || leftGC > 60) {
       warnings.push(`${primer.leftType} GC content ${leftGC.toFixed(1)}% outside 40-60% range`);
     }
-    if (leftTm < 64 || leftTm > 66) {
-      warnings.push(`${primer.leftType} Tm ${leftTm.toFixed(1)}°C outside 64-66°C range`);
+    if (isBIP) {
+      // Testing mode: BIP-left is forward
+      if (leftTm < 59 || leftTm > 61) {
+        warnings.push(`${primer.leftType} Tm ${leftTm.toFixed(1)}°C outside 59-61°C range`);
+      }
+    } else {
+      // FIP-left (or default) is RC
+      if (leftTm < 64 || leftTm > 66) {
+        warnings.push(`${primer.leftType} Tm ${leftTm.toFixed(1)}°C outside 64-66°C range`);
+      }
     }
     if (left5DG > -4.0) {
       warnings.push(`${primer.leftType} 5' end ΔG ${left5DG.toFixed(2)} > -4.0 kcal/mol (weak)`);
@@ -127,12 +136,20 @@ function validatePrimerThermodynamics(primer) {
     info.right5DG = right5DG;
     info.right3DG = right3DG;
     
-    // Validate right part (F2/B2 should be 59-61°C)
+    // Validate right part Tm based on orientation
     if (rightGC < 40 || rightGC > 60) {
       warnings.push(`${primer.rightType} GC content ${rightGC.toFixed(1)}% outside 40-60% range`);
     }
-    if (rightTm < 59 || rightTm > 61) {
-      warnings.push(`${primer.rightType} Tm ${rightTm.toFixed(1)}°C outside 59-61°C range`);
+    if (isBIP) {
+      // Testing mode: BIP-right is RC
+      if (rightTm < 64 || rightTm > 66) {
+        warnings.push(`${primer.rightType} Tm ${rightTm.toFixed(1)}°C outside 64-66°C range`);
+      }
+    } else {
+      // FIP-right (or default) is forward
+      if (rightTm < 59 || rightTm > 61) {
+        warnings.push(`${primer.rightType} Tm ${rightTm.toFixed(1)}°C outside 59-61°C range`);
+      }
     }
     if (right5DG > -4.0) {
       warnings.push(`${primer.rightType} 5' end ΔG ${right5DG.toFixed(2)} > -4.0 kcal/mol (weak)`);
@@ -485,6 +502,35 @@ function attachPrimerPositions(gene, primers) {
         p.leftEnd = split.leftEnd;
         p.rightStart = split.rightStart;
         p.rightEnd = split.rightEnd;
+
+        // Enforce orientation per primer type
+        // FIP: left binds as RC (F1c), right binds forward (F2)
+        // BIP (testing mode): left binds forward (B1c), right binds as RC (B2)
+        const bindsForward = (seq) => gene.indexOf(seq) !== -1;
+        const bindsRC = (seq) => gene.indexOf(revcomp(seq)) !== -1;
+        if (isFIP) {
+          // Ensure left=RC, right=Fwd
+          if (bindsForward(p.left) && bindsRC(p.right)) {
+            const tmpSeq = p.left; p.left = p.right; p.right = tmpSeq;
+            const tmpType = p.leftType; p.leftType = p.rightType; p.rightType = tmpType;
+            const tmpStart = p.leftStart; const tmpEnd = p.leftEnd;
+            p.leftStart = p.rightStart; p.leftEnd = p.rightEnd;
+            p.rightStart = tmpStart; p.rightEnd = tmpEnd;
+          }
+        } else if (isBIP) {
+          // Testing mode: Ensure left=Fwd, right=RC
+          if (bindsRC(p.left) && bindsForward(p.right)) {
+            const tmpSeq = p.left; p.left = p.right; p.right = tmpSeq;
+            const tmpType = p.leftType; p.leftType = p.rightType; p.rightType = tmpType;
+            const tmpStart = p.leftStart; const tmpEnd = p.leftEnd;
+            p.leftStart = p.rightStart; p.leftEnd = p.rightEnd;
+            p.rightStart = tmpStart; p.rightEnd = tmpEnd;
+          }
+        }
+
+        // Normalize names strictly per requested convention
+        if (isFIP) { p.leftType = "F1c"; p.rightType = "F2"; }
+        else { p.leftType = "B1c"; p.rightType = "B2"; }
         
         // Hairpin detection on full sequence
         const hp3 = checkHairpin3Prime(p.seq);
