@@ -47,21 +47,20 @@ function initExonJunctionControls() {
 
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
+      // Clear all junctions
       window.exonJunctions = [];
       renderJunctionList();
-      
-      // Re-run visualization
+      // Re-render visualization
       if (window.currentGene && window.currentPrimers) {
         displaySequence(window.currentGene, window.currentPrimers, window.exonJunctions);
       }
     });
   }
 
-  // Allow Enter key to add junctions
   if (input) {
     input.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        addBtn.click();
+        addBtn && addBtn.click();
       }
     });
   }
@@ -165,9 +164,17 @@ function populatePrimerTable(gene, primers) {
     let nameDisplay = p.name;
     let seqDisplay = p.seq;
     let lengthDisplay = "-";
+    let gcDisplay = "-";
+    let tmDisplay = "-";
+    let dgDisplay = "-";
     let orientDisplay = p.orientation || "-";
     let hairpinDisplay = "No"; // Default
     let controlsDisplay = "";
+
+    // Calculate thermodynamics
+    const thermodynamics = validatePrimerThermodynamics(p);
+    const thermoWarnings = thermodynamics.warnings;
+    const thermoInfo = thermodynamics.info;
 
     if (p.isInner) {
       // Show split format for FIP/BIP with color-coded parts
@@ -182,7 +189,56 @@ function populatePrimerTable(gene, primers) {
         const leftLength = p.leftEnd - p.leftStart;
         const rightLength = p.rightEnd - p.rightStart;
         lengthDisplay = `${p.leftType}:${leftLength}bp, ${p.rightType}:${rightLength}bp`;
-        orientDisplay = `${p.leftType}:RC, ${p.rightType}:Fwd`;
+        
+        // Display GC% for both parts
+        const leftGCColor = (thermoInfo.leftGC >= 40 && thermoInfo.leftGC <= 60) ? 'green' : 'red';
+        const rightGCColor = (thermoInfo.rightGC >= 40 && thermoInfo.rightGC <= 60) ? 'green' : 'red';
+        const leftGCWarning = leftGCColor === 'red' ? `${p.leftType} GC ${thermoInfo.leftGC.toFixed(1)}% is outside optimal 40-60% range` : `${p.leftType} GC ${thermoInfo.leftGC.toFixed(1)}% is within optimal range`;
+        const rightGCWarning = rightGCColor === 'red' ? `${p.rightType} GC ${thermoInfo.rightGC.toFixed(1)}% is outside optimal 40-60% range` : `${p.rightType} GC ${thermoInfo.rightGC.toFixed(1)}% is within optimal range`;
+        gcDisplay = `<div style="font-size: 10px;" title="${leftGCWarning}&#10;${rightGCWarning}">
+          <div style="color: ${leftGCColor};">${p.leftType}: ${thermoInfo.leftGC.toFixed(1)}%</div>
+          <div style="color: ${rightGCColor};">${p.rightType}: ${thermoInfo.rightGC.toFixed(1)}%</div>
+        </div>`;
+        
+        // Display Tm for both parts (ranges depend on orientation)
+        const isBIP = p.name && p.name.toUpperCase() === 'BIP';
+        const leftTmInRange = isBIP
+          ? (thermoInfo.leftTm >= 59 && thermoInfo.leftTm <= 61) // BIP-left is forward in testing mode
+          : (thermoInfo.leftTm >= 64 && thermoInfo.leftTm <= 66);
+        const rightTmInRange = isBIP
+          ? (thermoInfo.rightTm >= 64 && thermoInfo.rightTm <= 66) // BIP-right is RC in testing mode
+          : (thermoInfo.rightTm >= 59 && thermoInfo.rightTm <= 61);
+        const leftTmColor = leftTmInRange ? 'green' : 'red';
+        const rightTmColor = rightTmInRange ? 'green' : 'red';
+        const leftTmWarning = leftTmColor === 'red'
+          ? `${p.leftType} Tm ${thermoInfo.leftTm.toFixed(1)}°C is outside optimal ${isBIP ? '59-61°C' : '64-66°C'} range`
+          : `${p.leftType} Tm ${thermoInfo.leftTm.toFixed(1)}°C is within optimal range`;
+        const rightTmWarning = rightTmColor === 'red'
+          ? `${p.rightType} Tm ${thermoInfo.rightTm.toFixed(1)}°C is outside optimal ${isBIP ? '64-66°C' : '59-61°C'} range`
+          : `${p.rightType} Tm ${thermoInfo.rightTm.toFixed(1)}°C is within optimal range`;
+        tmDisplay = `<div style="font-size: 10px;" title="${leftTmWarning}&#10;${rightTmWarning}">
+          <div style="color: ${leftTmColor};">${p.leftType}: ${thermoInfo.leftTm.toFixed(1)}°</div>
+          <div style="color: ${rightTmColor};">${p.rightType}: ${thermoInfo.rightTm.toFixed(1)}°</div>
+        </div>`;
+        
+        // Display ΔG for both parts
+        const left5Color = thermoInfo.left5DG <= -4.0 ? 'green' : 'orange';
+        const left3Color = thermoInfo.left3DG <= -4.0 ? 'green' : 'orange';
+        const right5Color = thermoInfo.right5DG <= -4.0 ? 'green' : 'orange';
+        const right3Color = thermoInfo.right3DG <= -4.0 ? 'green' : 'orange';
+        const left5Warning = left5Color === 'orange' ? `${p.leftType} 5' end ΔG ${thermoInfo.left5DG.toFixed(2)} > -4.0 kcal/mol (weak binding)` : `${p.leftType} 5' end ΔG ${thermoInfo.left5DG.toFixed(2)} (good)`;
+        const left3Warning = left3Color === 'orange' ? `${p.leftType} 3' end ΔG ${thermoInfo.left3DG.toFixed(2)} > -4.0 kcal/mol (weak binding)` : `${p.leftType} 3' end ΔG ${thermoInfo.left3DG.toFixed(2)} (good)`;
+        const right5Warning = right5Color === 'orange' ? `${p.rightType} 5' end ΔG ${thermoInfo.right5DG.toFixed(2)} > -4.0 kcal/mol (weak binding)` : `${p.rightType} 5' end ΔG ${thermoInfo.right5DG.toFixed(2)} (good)`;
+        const right3Warning = right3Color === 'orange' ? `${p.rightType} 3' end ΔG ${thermoInfo.right3DG.toFixed(2)} > -4.0 kcal/mol (weak binding)` : `${p.rightType} 3' end ΔG ${thermoInfo.right3DG.toFixed(2)} (good)`;
+        dgDisplay = `<div style="font-size: 9px; line-height: 1.3;" title="${left5Warning}&#10;${left3Warning}&#10;${right5Warning}&#10;${right3Warning}">
+          <div>${p.leftType}: <span style="color: ${left5Color};">${thermoInfo.left5DG.toFixed(1)}</span> / <span style="color: ${left3Color};">${thermoInfo.left3DG.toFixed(1)}</span></div>
+          <div>${p.rightType}: <span style="color: ${right5Color};">${thermoInfo.right5DG.toFixed(1)}</span> / <span style="color: ${right3Color};">${thermoInfo.right3DG.toFixed(1)}</span></div>
+        </div>`;
+        
+        // Orientation label depends on primer type
+        orientDisplay = (p.name && p.name.toUpperCase() === 'BIP')
+          ? `${p.leftType}:Fwd, ${p.rightType}:RC`
+          : `${p.leftType}:RC, ${p.rightType}:Fwd`;
         
         // Add controls for FIP/BIP parts
         controlsDisplay = `
@@ -217,6 +273,33 @@ function populatePrimerTable(gene, primers) {
         const length = p.end - p.start;
         lengthDisplay = `${length}bp`;
         
+        // Display GC%
+        const gcColor = (thermoInfo.gc >= 40 && thermoInfo.gc <= 60) ? 'green' : 'red';
+        const gcWarning = gcColor === 'red' ? `GC ${thermoInfo.gc.toFixed(1)}% is outside optimal 40-60% range` : `GC ${thermoInfo.gc.toFixed(1)}% is within optimal range`;
+        gcDisplay = `<span style="color: ${gcColor}; font-weight: bold;" title="${gcWarning}">${thermoInfo.gc.toFixed(1)}%</span>`;
+        
+        // Display Tm with color coding based on primer type
+        const primerName = p.name.toUpperCase();
+        let tmColor = 'black';
+        let tmWarning = '';
+        if (primerName === 'F3' || primerName === 'B3' || primerName === 'F2' || primerName === 'B2') {
+          tmColor = (thermoInfo.tm >= 59 && thermoInfo.tm <= 61) ? 'green' : 'red';
+          tmWarning = tmColor === 'red' ? `Tm ${thermoInfo.tm.toFixed(1)}°C is outside optimal 59-61°C range for outer primers` : `Tm ${thermoInfo.tm.toFixed(1)}°C is within optimal range`;
+        } else if (primerName.includes('LOOP') || primerName === 'LF' || primerName === 'LB') {
+          tmColor = (thermoInfo.tm >= 64 && thermoInfo.tm <= 66) ? 'green' : 'red';
+          tmWarning = tmColor === 'red' ? `Tm ${thermoInfo.tm.toFixed(1)}°C is outside optimal 64-66°C range for loop primers` : `Tm ${thermoInfo.tm.toFixed(1)}°C is within optimal range`;
+        } else {
+          tmWarning = `Tm ${thermoInfo.tm.toFixed(1)}°C`;
+        }
+        tmDisplay = `<span style="color: ${tmColor}; font-weight: bold;" title="${tmWarning}">${thermoInfo.tm.toFixed(1)}°</span>`;
+        
+        // Display ΔG
+        const dg5Color = thermoInfo.dg5 <= -4.0 ? 'green' : 'orange';
+        const dg3Color = thermoInfo.dg3 <= -4.0 ? 'green' : 'orange';
+        const dg5Warning = dg5Color === 'orange' ? `5' end ΔG ${thermoInfo.dg5.toFixed(2)} > -4.0 kcal/mol (weak binding)` : `5' end ΔG ${thermoInfo.dg5.toFixed(2)} (good)`;
+        const dg3Warning = dg3Color === 'orange' ? `3' end ΔG ${thermoInfo.dg3.toFixed(2)} > -4.0 kcal/mol (weak binding)` : `3' end ΔG ${thermoInfo.dg3.toFixed(2)} (good)`;
+        dgDisplay = `<span title="${dg5Warning}&#10;${dg3Warning}"><span style="color: ${dg5Color}; font-weight: bold;">${thermoInfo.dg5.toFixed(1)}</span> / <span style="color: ${dg3Color}; font-weight: bold;">${thermoInfo.dg3.toFixed(1)}</span></span>`;
+        
         // Add interactive controls for regular primers
         controlsDisplay = `
           <div style="display: flex; gap: 5px; align-items: center;">
@@ -249,6 +332,9 @@ function populatePrimerTable(gene, primers) {
       <td>${nameDisplay}</td>
       <td style="font-family: monospace; font-size: 12px;">${seqDisplay}</td>
       <td style="font-size: 11px;">${lengthDisplay}</td>
+      <td style="font-size: 11px; text-align: center;">${gcDisplay}</td>
+      <td style="font-size: 11px; text-align: center;">${tmDisplay}</td>
+      <td style="font-size: 11px; text-align: center;">${dgDisplay}</td>
       <td style="font-size: 11px;">${orientDisplay}</td>
       <td style="font-size: 11px; text-align: center;">${hairpinDisplay}</td>
       <td style="font-size: 11px;">${controlsDisplay}</td>
@@ -309,8 +395,10 @@ function handlePositionChange(input) {
       }
       // Extract new sequence for left part
       primer.left = gene.substring(primer.leftStart, primer.leftEnd);
-      // Reverse complement since left part binds as RC
-      primer.left = revcomp(primer.left);
+      // Orientation: FIP-left is RC, BIP-left is Fwd (testing mode)
+      if (primer.name.toUpperCase() !== 'BIP') {
+        primer.left = revcomp(primer.left);
+      }
     } else if (part === 'right') {
       if (pos === 'start') {
         primer.rightStart = newValue - 1;
@@ -319,10 +407,38 @@ function handlePositionChange(input) {
       }
       // Extract new sequence for right part (binds forward)
       primer.right = gene.substring(primer.rightStart, primer.rightEnd);
+      // Orientation: FIP-right is Fwd, BIP-right is RC (testing mode)
+      if (primer.name.toUpperCase() === 'BIP') {
+        primer.right = revcomp(primer.right);
+      }
     }
     
     // Recombine full FIP/BIP sequence
     primer.seq = primer.left + primer.right;
+
+    // Enforce orientation per primer type
+    const bindsForward = (seq) => gene.indexOf(seq) !== -1;
+    const bindsRC = (seq) => gene.indexOf(revcomp(seq)) !== -1;
+    if (primer.name.toUpperCase() === 'FIP') {
+      // Ensure left=RC, right=Fwd
+      if (bindsForward(primer.left) && bindsRC(primer.right)) {
+        const tmpSeq = primer.left; primer.left = primer.right; primer.right = tmpSeq;
+        const tmpStart = primer.leftStart; const tmpEnd = primer.leftEnd;
+        primer.leftStart = primer.rightStart; primer.leftEnd = primer.rightEnd;
+        primer.rightStart = tmpStart; primer.rightEnd = tmpEnd;
+      }
+    } else if (primer.name.toUpperCase() === 'BIP') {
+      // Testing mode: Ensure left=Fwd, right=RC
+      if (bindsRC(primer.left) && bindsForward(primer.right)) {
+        const tmpSeq = primer.left; primer.left = primer.right; primer.right = tmpSeq;
+        const tmpStart = primer.leftStart; const tmpEnd = primer.leftEnd;
+        primer.leftStart = primer.rightStart; primer.leftEnd = primer.rightEnd;
+        primer.rightStart = tmpStart; primer.rightEnd = tmpEnd;
+      }
+    }
+    // Normalize names strictly
+    if (primer.name.toUpperCase() === 'FIP') { primer.leftType = 'F1c'; primer.rightType = 'F2'; }
+    else if (primer.name.toUpperCase() === 'BIP') { primer.leftType = 'B1c'; primer.rightType = 'B2'; }
     
   } else {
     // Regular primer
