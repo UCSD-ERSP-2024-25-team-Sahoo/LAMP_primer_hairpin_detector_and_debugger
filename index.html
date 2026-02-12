@@ -82,6 +82,7 @@
             <th>Orientation</th>
             <th>Hairpin</th>
             <th>Adjust Position</th>
+            <th>Analyze</th>
           </tr>
         </thead>
         <tbody>
@@ -89,6 +90,7 @@
         </tbody>
       </table>
     </section>
+
 
     <!-- CROSS-DIMER ANALYSIS TABLE -->
     <section class="output-section">
@@ -113,5 +115,46 @@
   <script src="sequence.js?v=20251205d"></script>
   <script src="ui.js?v=20251205d"></script>
   <script src="app.js?v=20251205d"></script>
+
+  <!-- Optimizer Modal (Popup interactive table) -->
+  <div id="optimizer-modal" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="optimizer-modal-title">
+      <div class="modal-header">
+        <h3 id="optimizer-modal-title">Optimize Primer</h3>
+        <button id="optimizer-modal-close" class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="optimizer-meta" style="font-size:12px; color:#666; margin-bottom:8px;"></div>
+        <div id="optimizer-controls" style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+          <label style="font-size:12px; color:#333;">Start
+            <input type="number" id="optimizer-start" min="1" value="1" style="width:80px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
+          </label>
+          <label style="font-size:12px; color:#333;">End
+            <input type="number" id="optimizer-end" min="1" value="1" style="width:80px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
+          </label>
+          <label style="font-size:12px; color:#333;">Top N
+            <input type="number" id="optimizer-topN" min="1" value="10" style="width:70px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
+          </label>
+          <button id="optimizer-run-btn" class="optimize-btn" style="padding:6px 12px;">Run</button>
+        </div>
+        <table id="optimizer-candidates-table">
+          <thead>
+            <tr>
+              <th>Candidate</th>
+              <th>GC%</th>
+              <th>Tm (°C)</th>
+              <th>ΔG 5' / 3'</th>
+              <th>Hairpin</th>
+              <th>Score</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JS fills -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
