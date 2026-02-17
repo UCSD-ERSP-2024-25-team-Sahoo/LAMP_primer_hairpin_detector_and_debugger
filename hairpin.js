@@ -742,30 +742,48 @@ function generatePrimerCandidates(primer, gene, options) {
       candidates.push(cand);
     });
   } else {
-    // Regular primer: scan the selected interval using current length
+    // Regular primer: scan the selected interval for all viable candidates
+    // Strategy: try multiple lengths around the current length, at each position
     const nm = primer.name.toUpperCase();
     const isReverse = primer.orientation === 'reverse (RC)';
     const curLen = (primer.start !== -1 && primer.end !== -1) ? (primer.end - primer.start) : primer.seq.length;
-    for (let s = start; s + curLen <= end; s++) {
-      const newStart = s;
-      const newEnd = s + curLen;
-      let seqExtract = gene.substring(newStart, newEnd);
-      const seqFinal = isReverse ? revcomp(seqExtract) : seqExtract;
-      const cand = {
-        name: primer.name,
-        seq: seqFinal,
-        isInner: false,
-        start: newStart,
-        end: newEnd,
-        orientation: primer.orientation,
-      };
-      const therm = validatePrimerThermodynamics(cand);
-      const hp3 = checkHairpin3Prime(cand.seq);
-      const hp5 = checkHairpin5Prime(cand.seq);
-      cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
-      cand.score = scoreRegularCandidate(nm, therm.info, cand.hasHairpin);
-      cand.info = therm.info;
-      candidates.push(cand);
+    
+    // Allow length variation: +/- 3bp from current length, or 15-40bp if no current length
+    let minLen, maxLen;
+    if (curLen > 0) {
+      minLen = Math.max(15, curLen - 3);
+      maxLen = Math.min(40, curLen + 3);
+    } else {
+      minLen = 20;
+      maxLen = 30;
+    }
+    
+    // Scan the interval for all candidate positions and lengths
+    for (let len = minLen; len <= maxLen && len <= end - start; len++) {
+      for (let pos = start; pos + len <= end; pos++) {
+        const seqExtract = gene.substring(pos, pos + len);
+        const seqFinal = isReverse ? revcomp(seqExtract) : seqExtract;
+        
+        const cand = {
+          name: primer.name,
+          seq: seqFinal,
+          isInner: false,
+          start: pos,
+          end: pos + len,
+          length: len,
+          orientation: primer.orientation,
+        };
+        
+        const therm = validatePrimerThermodynamics(cand);
+        const hp3 = checkHairpin3Prime(cand.seq);
+        const hp5 = checkHairpin5Prime(cand.seq);
+        cand.hairpin3 = hp3; 
+        cand.hairpin5 = hp5; 
+        cand.hasHairpin = !!(hp3 || hp5);
+        cand.score = scoreRegularCandidate(nm, therm.info, cand.hasHairpin);
+        cand.info = therm.info;
+        candidates.push(cand);
+      }
     }
   }
 

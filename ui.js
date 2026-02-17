@@ -1114,12 +1114,31 @@ function renderCandidates(primerIdx, opts) {
         <td style="text-align:center;"><button class="candidate-accept-btn" data-idx="${primerIdx}" data-cand="${i}">Accept</button></td>
       `;
       tbody.appendChild(tr);
-    } else {
+    } else if (cand.isInner) {
       // Full inner primer candidates (both parts)
       const seqDisplay = `${cand.leftType}=${cand.left} ⊕ ${cand.rightType}=${cand.right}`;
       const gc = `${cand.info.leftGC.toFixed(1)}% / ${cand.info.rightGC.toFixed(1)}%`;
       const tm = `${cand.info.leftTm.toFixed(1)}° / ${cand.info.rightTm.toFixed(1)}°`;
       const dg = `${cand.info.left5DG.toFixed(1)} / ${cand.info.left3DG.toFixed(1)} | ${cand.info.right5DG.toFixed(1)} / ${cand.info.right3DG.toFixed(1)}`;
+      const hp = cand.hairpin3 && cand.hairpin5 ? '3′+5′' : (cand.hairpin3 ? '3′' : (cand.hairpin5 ? '5′' : 'No'));
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family: monospace; font-size: 12px;">${seqDisplay}</td>
+        <td style="text-align:center;">${gc}</td>
+        <td style="text-align:center;">${tm}</td>
+        <td style="text-align:center;">${dg}</td>
+        <td style="text-align:center;">${hp}</td>
+        <td style="text-align:center; font-weight:bold; color:${cand.score >= 85 ? 'green' : (cand.score >= 70 ? '#e69500' : 'red')};">${cand.score.toFixed(1)}</td>
+        <td style="text-align:center;"><button class="candidate-accept-btn" data-idx="${primerIdx}" data-cand="${i}">Accept</button></td>
+      `;
+      tbody.appendChild(tr);
+    } else {
+      // Regular primers
+      const seqDisplay = `${cand.seq} (${cand.length}bp)`;
+      const gc = `${cand.info.gc.toFixed(1)}%`;
+      const tm = `${cand.info.tm.toFixed(1)}°`;
+      const dg = `${cand.info.dg5.toFixed(1)} / ${cand.info.dg3.toFixed(1)}`;
       const hp = cand.hairpin3 && cand.hairpin5 ? '3′+5′' : (cand.hairpin3 ? '3′' : (cand.hairpin5 ? '5′' : 'No'));
 
       const tr = document.createElement('tr');
