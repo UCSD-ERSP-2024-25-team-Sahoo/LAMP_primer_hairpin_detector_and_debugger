@@ -888,29 +888,71 @@ if (document.readyState === 'loading') {
 ------------------------ */
 
 function attachAnalyzeButtons() {
-  const buttons = document.querySelectorAll('.optimize-btn');
+  const buttons = document.querySelectorAll('.optimize-btn[data-primer-idx]');
   buttons.forEach(btn => {
     btn.addEventListener('click', (e) => {
       const idx = parseInt(e.currentTarget.dataset.primerIdx, 10);
+      if (Number.isNaN(idx)) return;
       openOptimizerModal(idx);
     });
   });
 }
 
-function openOptimizerModal(primerIdx) {
+let optimizerState = {
+  initialized: false,
+  primerIdx: null,
+  candidates: []
+};
+
+function initOptimizerModalHandlers() {
+  if (optimizerState.initialized) return;
+  optimizerState.initialized = true;
+
   const modal = document.getElementById('optimizer-modal');
   const closeBtn = document.getElementById('optimizer-modal-close');
+  const runBtn = document.getElementById('optimizer-run-btn');
+
+  if (closeBtn) closeBtn.addEventListener('click', closeOptimizerModal);
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeOptimizerModal();
+    });
+  }
+  if (runBtn) {
+    runBtn.addEventListener('click', () => {
+      if (optimizerState.primerIdx === null) return;
+      const gene = window.currentGene;
+      const primer = window.currentPrimers[optimizerState.primerIdx];
+      const opts = getOptimizerSettings(gene, primer);
+      renderCandidates(optimizerState.primerIdx, opts);
+    });
+  }
+}
+
+function openOptimizerModal(primerIdx) {
+  const modal = document.getElementById('optimizer-modal');
   const tbody = document.querySelector('#optimizer-candidates-table tbody');
   const meta = document.getElementById('optimizer-meta');
   const startInput = document.getElementById('optimizer-start');
   const endInput = document.getElementById('optimizer-end');
   const topNInput = document.getElementById('optimizer-topN');
-  const runBtn = document.getElementById('optimizer-run-btn');
+  const innerControls = document.getElementById('optimizer-inner-controls');
+  const partALabel = document.getElementById('optimizer-partA-label');
+  const partALabel2 = document.getElementById('optimizer-partA-label2');
+  const partBLabel = document.getElementById('optimizer-partB-label');
+  const partBLabel2 = document.getElementById('optimizer-partB-label2');
+  const partAStart = document.getElementById('optimizer-partA-start');
+  const partAEnd = document.getElementById('optimizer-partA-end');
+  const partBStart = document.getElementById('optimizer-partB-start');
+  const partBEnd = document.getElementById('optimizer-partB-end');
   if (!modal || !tbody) return;
   tbody.innerHTML = '';
 
   const gene = window.currentGene;
   const primers = window.currentPrimers;
+  if (!primers || Number.isNaN(primerIdx) || primerIdx < 0 || primerIdx >= primers.length) {
+    return;
+  }
   const primer = primers[primerIdx];
   meta.innerHTML = `<strong>${primer.name}</strong> &mdash; current length: ${primer.isInner ? primer.seq.length : (primer.end - primer.start)}bp`;
 
@@ -919,38 +961,89 @@ function openOptimizerModal(primerIdx) {
   if (endInput) endInput.value = gene.length;
   if (topNInput) topNInput.value = 10;
 
-  // Initial candidate render
-  const initial = getOptimizerSettings(gene);
-  renderCandidates(primerIdx, initial);
+  // Show/hide inner controls
+  if (primer && primer.name && (primer.name.toUpperCase() === 'FIP' || primer.name.toUpperCase() === 'BIP')) {
+    if (innerControls) innerControls.style.display = 'flex';
+    if (startInput) startInput.closest('label').style.display = 'none';
+    if (endInput) endInput.closest('label').style.display = 'none';
+
+    const isBIP = primer.name.toUpperCase() === 'BIP';
+    const leftLabel = isBIP ? 'B1c' : 'F1c';
+    const rightLabel = isBIP ? 'B2' : 'F2';
+    if (partALabel) partALabel.textContent = leftLabel;
+    if (partALabel2) partALabel2.textContent = leftLabel;
+    if (partBLabel) partBLabel.textContent = rightLabel;
+    if (partBLabel2) partBLabel2.textContent = rightLabel;
+    
+    // Also update the radio button labels
+    const leftRadioLabel = document.getElementById('optimizer-part-left-label');
+    const rightRadioLabel = document.getElementById('optimizer-part-right-label');
+    if (leftRadioLabel) leftRadioLabel.textContent = leftLabel;
+    if (rightRadioLabel) rightRadioLabel.textContent = rightLabel;
+
+    const forwardStart = isBIP ? (primer.leftStart ?? 0) : (primer.rightStart ?? 0);
+    const forwardEnd = isBIP ? (primer.leftEnd ?? gene.length) : (primer.rightEnd ?? gene.length);
+    const rcStart = isBIP ? (primer.rightStart ?? 0) : (primer.leftStart ?? 0);
+    const rcEnd = isBIP ? (primer.rightEnd ?? gene.length) : (primer.leftEnd ?? gene.length);
+    if (partAStart) partAStart.value = forwardStart + 1;
+    if (partAEnd) partAEnd.value = forwardEnd;
+    if (partBStart) partBStart.value = rcStart + 1;
+    if (partBEnd) partBEnd.value = rcEnd;
+  } else {
+    if (innerControls) innerControls.style.display = 'none';
+    if (startInput) startInput.closest('label').style.display = 'inline-flex';
+    if (endInput) endInput.closest('label').style.display = 'inline-flex';
+  }
+
+  // Do not auto-run; wait for user to input range and click Run
 
   // open modal
   modal.classList.add('active');
-  // close events
-  if (closeBtn) closeBtn.onclick = closeOptimizerModal;
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) closeOptimizerModal();
-  });
-
-  // run events
-  if (runBtn) {
-    runBtn.onclick = () => {
-      const opts = getOptimizerSettings(gene);
-      renderCandidates(primerIdx, opts);
-    };
-  }
+  optimizerState.primerIdx = primerIdx;
+  optimizerState.candidates = [];
+  initOptimizerModalHandlers();
 }
 
-function getOptimizerSettings(gene) {
+function getOptimizerSettings(gene, primer) {
   const startInput = document.getElementById('optimizer-start');
   const endInput = document.getElementById('optimizer-end');
   const topNInput = document.getElementById('optimizer-topN');
+  let topN = parseInt(topNInput?.value || '10', 10);
+  if (isNaN(topN) || topN < 1) topN = 10;
+
+  if (primer && primer.name && (primer.name.toUpperCase() === 'FIP' || primer.name.toUpperCase() === 'BIP')) {
+    const partRadios = document.getElementsByName('optimizer-part');
+    const selectedPart = Array.from(partRadios).find(r => r.checked)?.value || 'left';
+    
+    const partAStart = document.getElementById('optimizer-partA-start');
+    const partAEnd = document.getElementById('optimizer-partA-end');
+    const partBStart = document.getElementById('optimizer-partB-start');
+    const partBEnd = document.getElementById('optimizer-partB-end');
+
+    let aStart = parseInt(partAStart?.value || '1', 10);
+    let aEnd = parseInt(partAEnd?.value || String(gene.length), 10);
+    let bStart = parseInt(partBStart?.value || '1', 10);
+    let bEnd = parseInt(partBEnd?.value || String(gene.length), 10);
+    if (isNaN(aStart) || aStart < 1) aStart = 1;
+    if (isNaN(aEnd) || aEnd > gene.length) aEnd = gene.length;
+    if (isNaN(bStart) || bStart < 1) bStart = 1;
+    if (isNaN(bEnd) || bEnd > gene.length) bEnd = gene.length;
+    if (aStart > aEnd) { const t = aStart; aStart = aEnd; aEnd = t; }
+    if (bStart > bEnd) { const t = bStart; bStart = bEnd; bEnd = t; }
+
+    return {
+      topN,
+      optimizePart: selectedPart,
+      leftInterval: { start: aStart, end: aEnd },
+      rightInterval: { start: bStart, end: bEnd }
+    };
+  }
+
   let start = parseInt(startInput?.value || '1', 10);
   let end = parseInt(endInput?.value || String(gene.length), 10);
-  let topN = parseInt(topNInput?.value || '10', 10);
   if (isNaN(start) || start < 1) start = 1;
   if (isNaN(end) || end > gene.length) end = gene.length;
   if (start > end) { const t = start; start = end; end = t; }
-  if (isNaN(topN) || topN < 1) topN = 10;
   return { start, end, topN };
 }
 
@@ -961,10 +1054,37 @@ function renderCandidates(primerIdx, opts) {
   const gene = window.currentGene;
   const primers = window.currentPrimers;
   const primer = primers[primerIdx];
+  const intervalLen = opts.end - (opts.start - 1);
+  const curLen = (!primer.isInner && primer.start !== -1 && primer.end !== -1) ? (primer.end - primer.start) : primer.seq.length;
+  if (!primer.isInner && intervalLen < curLen) {
+    const msg = document.createElement('tr');
+    msg.innerHTML = `<td colspan="7" style="text-align:center; padding:12px; color:#c0392b; font-weight:bold;">Selected interval (${intervalLen}bp) is shorter than primer length (${curLen}bp). Expand range and try again.</td>`;
+    tbody.appendChild(msg);
+    return;
+  }
 
-  // convert to 0-based for generator
-  const options = { start: opts.start - 1, end: opts.end, topN: opts.topN };
-  const candidates = window.generatePrimerCandidates(primer, gene, options) || [];
+  let options = { topN: opts.topN };
+  if (primer && primer.name && (primer.name.toUpperCase() === 'FIP' || primer.name.toUpperCase() === 'BIP')) {
+    const isBIP = primer.name.toUpperCase() === 'BIP';
+    const optimizePart = opts.optimizePart || 'left';
+    const lStart = opts.leftInterval.start - 1;
+    const lEnd = opts.leftInterval.end;
+    const rStart = opts.rightInterval.start - 1;
+    const rEnd = opts.rightInterval.end;
+    options.optimizePart = optimizePart;
+    options.isBIP = isBIP;
+    options.leftInterval = { start: lStart, end: lEnd };
+    options.rightInterval = { start: rStart, end: rEnd };
+  } else {
+    // convert to 0-based for generator
+    options.start = opts.start - 1;
+    options.end = opts.end;
+  }
+  
+  // Use separate part generator for FIP/BIP
+  const candidates = (primer && primer.name && (primer.name.toUpperCase() === 'FIP' || primer.name.toUpperCase() === 'BIP'))
+    ? (window.generatePartCandidates(primer, gene, options) || [])
+    : (window.generatePrimerCandidates(primer, gene, options) || []);
 
   if (candidates.length === 0) {
     const empty = document.createElement('tr');
@@ -973,29 +1093,47 @@ function renderCandidates(primerIdx, opts) {
     return;
   }
 
+  optimizerState.candidates = candidates;
   candidates.forEach((cand, i) => {
-    const seqDisplay = cand.isInner
-      ? `${cand.leftType}=${cand.left} ⊕ ${cand.rightType}=${cand.right}`
-      : cand.seq;
-    const gc = cand.isInner ? `${cand.info.leftGC.toFixed(1)}% / ${cand.info.rightGC.toFixed(1)}%`
-                            : `${cand.info.gc.toFixed(1)}%`;
-    const tm = cand.isInner ? `${cand.info.leftTm.toFixed(1)}° / ${cand.info.rightTm.toFixed(1)}°`
-                            : `${cand.info.tm.toFixed(1)}°`;
-    const dg = cand.isInner ? `${cand.info.left5DG.toFixed(1)} / ${cand.info.left3DG.toFixed(1)} | ${cand.info.right5DG.toFixed(1)} / ${cand.info.right3DG.toFixed(1)}`
-                            : `${cand.info.dg5.toFixed(1)} / ${cand.info.dg3.toFixed(1)}`;
-    const hp = cand.hairpin3 && cand.hairpin5 ? '3′+5′' : (cand.hairpin3 ? '3′' : (cand.hairpin5 ? '5′' : 'No'));
+    // Handle single-part candidates (FIP/BIP with separate optimization)
+    if (cand.isSinglePart) {
+      const seqDisplay = `${cand.partName} = ${cand.seq}`;
+      const gc = `${cand.info.gc.toFixed(1)}%`;
+      const tm = `${cand.info.tm.toFixed(1)}°`;
+      const dg = `${cand.info.dg5.toFixed(1)} / ${cand.info.dg3.toFixed(1)}`;
+      const hp = cand.hairpin3 && cand.hairpin5 ? '3′+5′' : (cand.hairpin3 ? '3′' : (cand.hairpin5 ? '5′' : 'No'));
 
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-family: monospace; font-size: 12px;">${seqDisplay}</td>
-      <td style="text-align:center;">${gc}</td>
-      <td style="text-align:center;">${tm}</td>
-      <td style="text-align:center;">${dg}</td>
-      <td style="text-align:center;">${hp}</td>
-      <td style="text-align:center; font-weight:bold; color:${cand.score >= 85 ? 'green' : (cand.score >= 70 ? '#e69500' : 'red')};">${cand.score.toFixed(1)}</td>
-      <td style="text-align:center;"><button class="candidate-accept-btn" data-idx="${primerIdx}" data-cand="${i}">Accept</button></td>
-    `;
-    tbody.appendChild(tr);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family: monospace; font-size: 12px;">${seqDisplay}</td>
+        <td style="text-align:center;">${gc}</td>
+        <td style="text-align:center;">${tm}</td>
+        <td style="text-align:center;">${dg}</td>
+        <td style="text-align:center;">${hp}</td>
+        <td style="text-align:center; font-weight:bold; color:${cand.score >= 85 ? 'green' : (cand.score >= 70 ? '#e69500' : 'red')};">${cand.score.toFixed(1)}</td>
+        <td style="text-align:center;"><button class="candidate-accept-btn" data-idx="${primerIdx}" data-cand="${i}">Accept</button></td>
+      `;
+      tbody.appendChild(tr);
+    } else {
+      // Full inner primer candidates (both parts)
+      const seqDisplay = `${cand.leftType}=${cand.left} ⊕ ${cand.rightType}=${cand.right}`;
+      const gc = `${cand.info.leftGC.toFixed(1)}% / ${cand.info.rightGC.toFixed(1)}%`;
+      const tm = `${cand.info.leftTm.toFixed(1)}° / ${cand.info.rightTm.toFixed(1)}°`;
+      const dg = `${cand.info.left5DG.toFixed(1)} / ${cand.info.left3DG.toFixed(1)} | ${cand.info.right5DG.toFixed(1)} / ${cand.info.right3DG.toFixed(1)}`;
+      const hp = cand.hairpin3 && cand.hairpin5 ? '3′+5′' : (cand.hairpin3 ? '3′' : (cand.hairpin5 ? '5′' : 'No'));
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family: monospace; font-size: 12px;">${seqDisplay}</td>
+        <td style="text-align:center;">${gc}</td>
+        <td style="text-align:center;">${tm}</td>
+        <td style="text-align:center;">${dg}</td>
+        <td style="text-align:center;">${hp}</td>
+        <td style="text-align:center; font-weight:bold; color:${cand.score >= 85 ? 'green' : (cand.score >= 70 ? '#e69500' : 'red')};">${cand.score.toFixed(1)}</td>
+        <td style="text-align:center;"><button class="candidate-accept-btn" data-idx="${primerIdx}" data-cand="${i}">Accept</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
   });
 
   // attach accept handlers
@@ -1004,7 +1142,7 @@ function renderCandidates(primerIdx, opts) {
     btn.addEventListener('click', (e) => {
       const pIdx = parseInt(e.currentTarget.dataset.idx, 10);
       const cIdx = parseInt(e.currentTarget.dataset.cand, 10);
-      applyCandidate(pIdx, candidates[cIdx]);
+      applyCandidate(pIdx, optimizerState.candidates[cIdx]);
       closeOptimizerModal();
     });
   });
@@ -1019,7 +1157,31 @@ function applyCandidate(primerIdx, cand) {
   const gene = window.currentGene;
   const primers = window.currentPrimers;
   const p = primers[primerIdx];
-  if (cand.isInner) {
+  
+  if (cand.isSinglePart) {
+    // Single part optimization (FIP/BIP parts optimized separately)
+    const isBIP = p.name.toUpperCase() === 'BIP';
+    if (cand.partType === 'left') {
+      // Replace left part
+      p.left = cand.seq;
+      p.leftStart = cand.start;
+      p.leftEnd = cand.end;
+      // Reconstruct full sequence: left + right (currently known)
+      if (p.right) {
+        p.seq = p.left + p.right;
+      }
+    } else {
+      // Replace right part
+      p.right = cand.seq;
+      p.rightStart = cand.start;
+      p.rightEnd = cand.end;
+      // Reconstruct full sequence: left + right (currently known)
+      if (p.left) {
+        p.seq = p.left + p.right;
+      }
+    }
+  } else if (cand.isInner) {
+    // Full inner primer replacement (both parts)
     p.isInner = true;
     p.seq = cand.seq;
     p.left = cand.left; p.right = cand.right;
@@ -1027,6 +1189,7 @@ function applyCandidate(primerIdx, cand) {
     p.leftStart = cand.leftStart; p.leftEnd = cand.leftEnd;
     p.rightStart = cand.rightStart; p.rightEnd = cand.rightEnd;
   } else {
+    // Regular primer
     p.isInner = false;
     p.seq = cand.seq;
     p.start = cand.start; p.end = cand.end;

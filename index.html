@@ -132,6 +132,39 @@
           <label style="font-size:12px; color:#333;">End
             <input type="number" id="optimizer-end" min="1" value="1" style="width:80px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
           </label>
+          <div id="optimizer-inner-controls" style="display:none; flex-direction: column; gap:8px; padding:8px; border:1px solid #e0e0e0; border-radius:3px; background-color:#fafafa;">
+            <div style="font-size:11px; color:#666; font-weight:bold;">Optimize Part (separate runs):</div>
+            <div style="display:flex; gap:12px;">
+              <label style="font-size:12px; color:#333; display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="optimizer-part" value="left" id="optimizer-part-left" checked>
+                <span id="optimizer-part-left-label">Left Part</span>
+              </label>
+              <label style="font-size:12px; color:#333; display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="optimizer-part" value="right" id="optimizer-part-right">
+                <span id="optimizer-part-right-label">Right Part</span>
+              </label>
+            </div>
+            <div style="border-top: 1px solid #ddd; padding-top:8px; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:11px; color:#666;">Left Part Interval:</div>
+              <div style="display:flex; gap:8px;">
+                <label style="font-size:12px; color:#333;"><span id="optimizer-partA-label">Left</span> Start
+                  <input type="number" id="optimizer-partA-start" min="1" value="1" style="width:70px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
+                </label>
+                <label style="font-size:12px; color:#333;"><span id="optimizer-partA-label2">Left</span> End
+                  <input type="number" id="optimizer-partA-end" min="1" value="1" style="width:70px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
+                </label>
+              </div>
+              <div style="font-size:11px; color:#666; margin-top:4px;">Right Part Interval:</div>
+              <div style="display:flex; gap:8px;">
+                <label style="font-size:12px; color:#333;"><span id="optimizer-partB-label">Right</span> Start
+                  <input type="number" id="optimizer-partB-start" min="1" value="1" style="width:70px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
+                </label>
+                <label style="font-size:12px; color:#333;"><span id="optimizer-partB-label2">Right</span> End
+                  <input type="number" id="optimizer-partB-end" min="1" value="1" style="width:70px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
+                </label>
+              </div>
+            </div>
+          </div>
           <label style="font-size:12px; color:#333;">Top N
             <input type="number" id="optimizer-topN" min="1" value="10" style="width:70px; padding:4px 6px; border:1px solid #ddd; border-radius:3px; font-family: monospace;">
           </label>
