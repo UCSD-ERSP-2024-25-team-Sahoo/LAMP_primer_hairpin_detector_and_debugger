@@ -783,7 +783,9 @@ function generatePrimerCandidates(primer, gene, options) {
 }
 
 // Optimize a single part (left or right) of an inner primer (FIP/BIP)
-// Part is scanned independently with its own interval constraint
+// Strategy: 
+//   - For LEFT part: scan gene for all matches of different lengths in the target Tm range
+//   - For RIGHT part: scan gene for all matches of different lengths in the target Tm range
 function generatePartCandidates(primer, gene, options) {
   gene = gene.toUpperCase();
   const candidates = [];
@@ -795,7 +797,7 @@ function generatePartCandidates(primer, gene, options) {
   const rightInterval = options && options.rightInterval ? options.rightInterval : { start: 0, end: gene.length };
   
   // Determine which part to optimize and its constraints
-  let interval, partName, partType, tmTarget;
+  let interval, partName, partType, tmTarget, minLen, maxLen;
   
   if (optimizePart === 'left') {
     // Optimize left part (F1c for FIP, B1c for BIP)
@@ -804,6 +806,8 @@ function generatePartCandidates(primer, gene, options) {
     partType = 'left';
     // Left part: F1c binds as RC (target 64-66°C for FIP), B1c binds forward (target 59-61°C for BIP)
     tmTarget = isBIP ? [59, 61] : [64, 66];
+    minLen = 15; // min part length
+    maxLen = 40; // max part length
   } else {
     // Optimize right part (F2 for FIP, B2 for BIP)
     interval = rightInterval;
@@ -811,202 +815,104 @@ function generatePartCandidates(primer, gene, options) {
     partType = 'right';
     // Right part: F2 binds forward (target 59-61°C for FIP), B2 binds as RC (target 64-66°C for BIP)
     tmTarget = isBIP ? [64, 66] : [59, 61];
+    minLen = 15;
+    maxLen = 40;
   }
   
   const start = Math.max(0, interval.start);
   const end = Math.min(gene.length, interval.end);
   
-  // For left part, generate all RC occurrences in interval
-  if (optimizePart === 'left') {
-    // For each split length, get all valid left parts
-    for (let rightLen = 15; rightLen <= 35 && rightLen < primer.seq.length - 10; rightLen++) {
-      const leftPart = primer.seq.slice(0, primer.seq.length - rightLen);
-      // For FIP: left part (F1c) binds as RC, so search for RC in interval
-      // For BIP: left part (B1c) binds forward, so search for part itself in interval
+  // Scan the interval for all possible candidates of different lengths
+  // This creates a grid of possibilities: each position × each possible length
+  
+  for (let len = minLen; len <= maxLen && len <= end - start; len++) {
+    // For this length, scan all positions in the interval
+    for (let pos = start; pos + len <= end; pos++) {
+      let candSeq;
       
-      if (isBIP) {
-        // Search for left part forward in interval
-        for (let s = start; s + leftPart.length <= end; s++) {
-          if (gene.substring(s, s + leftPart.length) === leftPart) {
-            const cand = {
-              name: primer.name,
-              partName: partName,
-              partType: partType,
-              seq: leftPart,
-              isInner: true,
-              isSinglePart: true,
-              start: s,
-              end: s + leftPart.length,
-              originalSeq: primer.seq,
-              rightLen: rightLen
-            };
-            const therm = validatePrimerThermodynamics(cand);
-            const hp3 = checkHairpin3Prime(cand.seq);
-            const hp5 = checkHairpin5Prime(cand.seq);
-            cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
-            
-            // Score using single-part logic
-            let score = 100;
-            const tm = therm.info?.tm || 0;
-            const gc = therm.info?.gc || 0;
-            const dg5 = therm.info?.dg5 || 0;
-            const dg3 = therm.info?.dg3 || 0;
-            
-            if (tm < tmTarget[0]) score -= (tmTarget[0] - tm) * 5;
-            if (tm > tmTarget[1]) score -= (tm - tmTarget[1]) * 5;
-            score -= Math.abs(gc - 50) * 0.8;
-            if (dg5 > -4.0) score -= (dg5 + 4.0) * 10;
-            if (dg3 > -4.0) score -= (dg3 + 4.0) * 12;
-            if (cand.hasHairpin) score -= 20;
-            
-            cand.score = score;
-            cand.info = therm.info;
-            candidates.push(cand);
-          }
+      if (optimizePart === 'left') {
+        if (isBIP) {
+          // BIP left (B1c) binds forward: take sequence as-is
+          candSeq = gene.substring(pos, pos + len);
+        } else {
+          // FIP left (F1c) binds as RC: take reverse complement
+          const seqAtPos = gene.substring(pos, pos + len);
+          candSeq = revcomp(seqAtPos);
         }
       } else {
-        // FIP: search for left part's RC in interval
-        const leftRC = revcomp(leftPart);
-        for (let s = start; s + leftPart.length <= end; s++) {
-          if (gene.substring(s, s + leftPart.length) === leftRC) {
-            const cand = {
-              name: primer.name,
-              partName: partName,
-              partType: partType,
-              seq: leftPart,
-              isInner: true,
-              isSinglePart: true,
-              start: s,
-              end: s + leftPart.length,
-              originalSeq: primer.seq,
-              rightLen: rightLen
-            };
-            const therm = validatePrimerThermodynamics(cand);
-            const hp3 = checkHairpin3Prime(cand.seq);
-            const hp5 = checkHairpin5Prime(cand.seq);
-            cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
-            
-            // Score using single-part logic
-            let score = 100;
-            const tm = therm.info?.tm || 0;
-            const gc = therm.info?.gc || 0;
-            const dg5 = therm.info?.dg5 || 0;
-            const dg3 = therm.info?.dg3 || 0;
-            
-            if (tm < tmTarget[0]) score -= (tmTarget[0] - tm) * 5;
-            if (tm > tmTarget[1]) score -= (tm - tmTarget[1]) * 5;
-            score -= Math.abs(gc - 50) * 0.8;
-            if (dg5 > -4.0) score -= (dg5 + 4.0) * 10;
-            if (dg3 > -4.0) score -= (dg3 + 4.0) * 12;
-            if (cand.hasHairpin) score -= 20;
-            
-            cand.score = score;
-            cand.info = therm.info;
-            candidates.push(cand);
-          }
+        if (isBIP) {
+          // BIP right (B2) binds as RC: take reverse complement
+          const seqAtPos = gene.substring(pos, pos + len);
+          candSeq = revcomp(seqAtPos);
+        } else {
+          // FIP right (F2) binds forward: take sequence as-is
+          candSeq = gene.substring(pos, pos + len);
         }
       }
-    }
-  } 
-  // For right part, generate all forward occurrences in interval
-  else {
-    // For each split length, get all valid right parts
-    for (let rightLen = 15; rightLen <= 35 && rightLen < primer.seq.length - 10; rightLen++) {
-      const rightPart = primer.seq.slice(primer.seq.length - rightLen);
       
-      if (isBIP) {
-        // BIP right part (B2) binds as RC, search for RC in interval
-        const rightRC = revcomp(rightPart);
-        for (let s = start; s + rightPart.length <= end; s++) {
-          if (gene.substring(s, s + rightPart.length) === rightRC) {
-            const cand = {
-              name: primer.name,
-              partName: partName,
-              partType: partType,
-              seq: rightPart,
-              isInner: true,
-              isSinglePart: true,
-              start: s,
-              end: s + rightPart.length,
-              originalSeq: primer.seq,
-              rightLen: rightLen
-            };
-            const therm = validatePrimerThermodynamics(cand);
-            const hp3 = checkHairpin3Prime(cand.seq);
-            const hp5 = checkHairpin5Prime(cand.seq);
-            cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
-            
-            let score = 100;
-            const tm = therm.info?.tm || 0;
-            const gc = therm.info?.gc || 0;
-            const dg5 = therm.info?.dg5 || 0;
-            const dg3 = therm.info?.dg3 || 0;
-            
-            if (tm < tmTarget[0]) score -= (tmTarget[0] - tm) * 5;
-            if (tm > tmTarget[1]) score -= (tm - tmTarget[1]) * 5;
-            score -= Math.abs(gc - 50) * 0.8;
-            if (dg5 > -4.0) score -= (dg5 + 4.0) * 10;
-            if (dg3 > -4.0) score -= (dg3 + 4.0) * 12;
-            if (cand.hasHairpin) score -= 20;
-            
-            cand.score = score;
-            cand.info = therm.info;
-            candidates.push(cand);
-          }
-        }
-      } else {
-        // FIP right part (F2) binds forward
-        for (let s = start; s + rightPart.length <= end; s++) {
-          if (gene.substring(s, s + rightPart.length) === rightPart) {
-            const cand = {
-              name: primer.name,
-              partName: partName,
-              partType: partType,
-              seq: rightPart,
-              isInner: true,
-              isSinglePart: true,
-              start: s,
-              end: s + rightPart.length,
-              originalSeq: primer.seq,
-              rightLen: rightLen
-            };
-            const therm = validatePrimerThermodynamics(cand);
-            const hp3 = checkHairpin3Prime(cand.seq);
-            const hp5 = checkHairpin5Prime(cand.seq);
-            cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
-            
-            let score = 100;
-            const tm = therm.info?.tm || 0;
-            const gc = therm.info?.gc || 0;
-            const dg5 = therm.info?.dg5 || 0;
-            const dg3 = therm.info?.dg3 || 0;
-            
-            if (tm < tmTarget[0]) score -= (tmTarget[0] - tm) * 5;
-            if (tm > tmTarget[1]) score -= (tm - tmTarget[1]) * 5;
-            score -= Math.abs(gc - 50) * 0.8;
-            if (dg5 > -4.0) score -= (dg5 + 4.0) * 10;
-            if (dg3 > -4.0) score -= (dg3 + 4.0) * 12;
-            if (cand.hasHairpin) score -= 20;
-            
-            cand.score = score;
-            cand.info = therm.info;
-            candidates.push(cand);
-          }
-        }
-      }
+      const cand = {
+        name: primer.name,
+        partName: partName,
+        partType: partType,
+        seq: candSeq,
+        isInner: true,
+        isSinglePart: true,
+        start: pos,
+        end: pos + len,
+        length: len,
+        info: {}
+      };
+      
+      // Validate thermodynamics
+      const therm = validatePrimerThermodynamics(cand);
+      const hp3 = checkHairpin3Prime(cand.seq);
+      const hp5 = checkHairpin5Prime(cand.seq);
+      cand.hairpin3 = hp3;
+      cand.hairpin5 = hp5;
+      cand.hasHairpin = !!(hp3 || hp5);
+      
+      // Score using single-part logic
+      let score = 100;
+      const tm = therm.info?.tm || 0;
+      const gc = therm.info?.gc || 0;
+      const dg5 = therm.info?.dg5 || 0;
+      const dg3 = therm.info?.dg3 || 0;
+      
+      // Tm is most critical
+      if (tm < tmTarget[0]) score -= (tmTarget[0] - tm) * 5;
+      if (tm > tmTarget[1]) score -= (tm - tmTarget[1]) * 5;
+      // GC content penalty
+      score -= Math.abs(gc - 50) * 0.8;
+      // End stability penalties
+      if (dg5 > -4.0) score -= (dg5 + 4.0) * 10;
+      if (dg3 > -4.0) score -= (dg3 + 4.0) * 12;
+      // Hairpin penalty
+      if (cand.hasHairpin) score -= 20;
+      
+      cand.score = Math.max(0, score);
+      cand.info = therm.info;
+      candidates.push(cand);
     }
   }
   
-  // Deduplicate by sequence and sort by score
+  // Deduplicate by sequence and keep best score per unique sequence
   const unique = new Map();
   candidates.forEach(c => {
-    if (!unique.has(c.seq)) unique.set(c.seq, c);
-    else {
+    if (!unique.has(c.seq)) {
+      unique.set(c.seq, c);
+    } else {
       const existing = unique.get(c.seq);
-      if (c.score > existing.score) unique.set(c.seq, c);
+      if (c.score > existing.score) {
+        unique.set(c.seq, c);
+      }
     }
   });
-  const out = Array.from(unique.values()).sort((a,b) => b.score - a.score).slice(0, topN);
+  
+  // Sort by score descending and return top N
+  const out = Array.from(unique.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN);
+  
   return out;
 }
 
