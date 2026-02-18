@@ -981,14 +981,12 @@ function openOptimizerModal(primerIdx) {
     if (leftRadioLabel) leftRadioLabel.textContent = leftLabel;
     if (rightRadioLabel) rightRadioLabel.textContent = rightLabel;
 
-    const forwardStart = isBIP ? (primer.leftStart ?? 0) : (primer.rightStart ?? 0);
-    const forwardEnd = isBIP ? (primer.leftEnd ?? gene.length) : (primer.rightEnd ?? gene.length);
-    const rcStart = isBIP ? (primer.rightStart ?? 0) : (primer.leftStart ?? 0);
-    const rcEnd = isBIP ? (primer.rightEnd ?? gene.length) : (primer.leftEnd ?? gene.length);
-    if (partAStart) partAStart.value = forwardStart + 1;
-    if (partAEnd) partAEnd.value = forwardEnd;
-    if (partBStart) partBStart.value = rcStart + 1;
-    if (partBEnd) partBEnd.value = rcEnd;
+    // Part A = Left part (F1c or B1c), Part B = Right part (F2 or B2)
+    // These mappings are consistent regardless of FIP/BIP
+    if (partAStart) partAStart.value = (primer.leftStart ?? 0) + 1;
+    if (partAEnd) partAEnd.value = primer.leftEnd ?? gene.length;
+    if (partBStart) partBStart.value = (primer.rightStart ?? 0) + 1;
+    if (partBEnd) partBEnd.value = primer.rightEnd ?? gene.length;
   } else {
     if (innerControls) innerControls.style.display = 'none';
     if (startInput) startInput.closest('label').style.display = 'inline-flex';
