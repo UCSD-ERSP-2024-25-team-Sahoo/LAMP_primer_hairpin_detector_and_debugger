@@ -703,15 +703,23 @@ function generatePrimerCandidates(primer, gene, options) {
   const start = options && typeof options.start === 'number' ? Math.max(0, options.start) : 0;
   const end = options && typeof options.end === 'number' ? Math.min(gene.length, options.end) : gene.length;
   const topN = options && typeof options.topN === 'number' ? Math.max(1, options.topN) : 20;
+  const innerForward = options && options.innerForward ? options.innerForward : null;
+  const innerRc = options && options.innerRc ? options.innerRc : null;
 
   if (primer.name && (primer.name.toUpperCase() === 'FIP' || primer.name.toUpperCase() === 'BIP')) {
     const isFIP = primer.name.toUpperCase() === 'FIP';
     const isBIP = primer.name.toUpperCase() === 'BIP';
     const splits = enumerateInnerPrimerSplits(primer.seq, gene, isFIP);
     splits.forEach(s => {
-      // Filter by interval: both parts start within [start, end)
-      if (s.leftStart < start || s.leftStart >= end) return;
-      if (s.rightStart < start || s.rightStart >= end) return;
+      // Filter by interval(s): constrain forward-binding and RC-binding parts when provided
+      const forwardStart = isBIP ? s.leftStart : s.rightStart;
+      const rcStart = isBIP ? s.rightStart : s.leftStart;
+      const fStart = innerForward ? innerForward.start : start;
+      const fEnd = innerForward ? innerForward.end : end;
+      const rStart = innerRc ? innerRc.start : start;
+      const rEnd = innerRc ? innerRc.end : end;
+      if (forwardStart < fStart || forwardStart >= fEnd) return;
+      if (rcStart < rStart || rcStart >= rEnd) return;
       const cand = {
         name: primer.name,
         seq: s.left + s.right,
@@ -734,30 +742,48 @@ function generatePrimerCandidates(primer, gene, options) {
       candidates.push(cand);
     });
   } else {
-    // Regular primer: scan the selected interval using current length
+    // Regular primer: scan the selected interval for all viable candidates
+    // Strategy: try multiple lengths around the current length, at each position
     const nm = primer.name.toUpperCase();
     const isReverse = primer.orientation === 'reverse (RC)';
     const curLen = (primer.start !== -1 && primer.end !== -1) ? (primer.end - primer.start) : primer.seq.length;
-    for (let s = start; s + curLen <= end; s++) {
-      const newStart = s;
-      const newEnd = s + curLen;
-      let seqExtract = gene.substring(newStart, newEnd);
-      const seqFinal = isReverse ? revcomp(seqExtract) : seqExtract;
-      const cand = {
-        name: primer.name,
-        seq: seqFinal,
-        isInner: false,
-        start: newStart,
-        end: newEnd,
-        orientation: primer.orientation,
-      };
-      const therm = validatePrimerThermodynamics(cand);
-      const hp3 = checkHairpin3Prime(cand.seq);
-      const hp5 = checkHairpin5Prime(cand.seq);
-      cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
-      cand.score = scoreRegularCandidate(nm, therm.info, cand.hasHairpin);
-      cand.info = therm.info;
-      candidates.push(cand);
+    
+    // Allow length variation: +/- 3bp from current length, or 15-40bp if no current length
+    let minLen, maxLen;
+    if (curLen > 0) {
+      minLen = Math.max(15, curLen - 3);
+      maxLen = Math.min(40, curLen + 3);
+    } else {
+      minLen = 20;
+      maxLen = 30;
+    }
+    
+    // Scan the interval for all candidate positions and lengths
+    for (let len = minLen; len <= maxLen && len <= end - start; len++) {
+      for (let pos = start; pos + len <= end; pos++) {
+        const seqExtract = gene.substring(pos, pos + len);
+        const seqFinal = isReverse ? revcomp(seqExtract) : seqExtract;
+        
+        const cand = {
+          name: primer.name,
+          seq: seqFinal,
+          isInner: false,
+          start: pos,
+          end: pos + len,
+          length: len,
+          orientation: primer.orientation,
+        };
+        
+        const therm = validatePrimerThermodynamics(cand);
+        const hp3 = checkHairpin3Prime(cand.seq);
+        const hp5 = checkHairpin5Prime(cand.seq);
+        cand.hairpin3 = hp3; 
+        cand.hairpin5 = hp5; 
+        cand.hasHairpin = !!(hp3 || hp5);
+        cand.score = scoreRegularCandidate(nm, therm.info, cand.hasHairpin);
+        cand.info = therm.info;
+        candidates.push(cand);
+      }
     }
   }
 
@@ -774,6 +800,141 @@ function generatePrimerCandidates(primer, gene, options) {
   return out;
 }
 
+// Optimize a single part (left or right) of an inner primer (FIP/BIP)
+// Strategy: 
+//   - For LEFT part: scan gene for all matches of different lengths in the target Tm range
+//   - For RIGHT part: scan gene for all matches of different lengths in the target Tm range
+function generatePartCandidates(primer, gene, options) {
+  gene = gene.toUpperCase();
+  const candidates = [];
+  const optimizePart = options && options.optimizePart ? options.optimizePart : 'left';
+  const isBIP = options && options.isBIP ? options.isBIP : false;
+  const topN = options && typeof options.topN === 'number' ? Math.max(1, options.topN) : 20;
+  
+  const leftInterval = options && options.leftInterval ? options.leftInterval : { start: 0, end: gene.length };
+  const rightInterval = options && options.rightInterval ? options.rightInterval : { start: 0, end: gene.length };
+  
+  // Determine which part to optimize and its constraints
+  let interval, partName, partType, tmTarget, minLen, maxLen;
+  
+  if (optimizePart === 'left') {
+    // Optimize left part (F1c for FIP, B1c for BIP)
+    interval = leftInterval;
+    partName = isBIP ? 'B1c' : 'F1c';
+    partType = 'left';
+    // Left part: F1c binds as RC (target 64-66°C for FIP), B1c binds forward (target 59-61°C for BIP)
+    tmTarget = isBIP ? [59, 61] : [64, 66];
+    minLen = 15; // min part length
+    maxLen = 40; // max part length
+  } else {
+    // Optimize right part (F2 for FIP, B2 for BIP)
+    interval = rightInterval;
+    partName = isBIP ? 'B2' : 'F2';
+    partType = 'right';
+    // Right part: F2 binds forward (target 59-61°C for FIP), B2 binds as RC (target 64-66°C for BIP)
+    tmTarget = isBIP ? [64, 66] : [59, 61];
+    minLen = 15;
+    maxLen = 40;
+  }
+  
+  const start = Math.max(0, interval.start);
+  const end = Math.min(gene.length, interval.end);
+  
+  // Scan the interval for all possible candidates of different lengths
+  // This creates a grid of possibilities: each position × each possible length
+  
+  for (let len = minLen; len <= maxLen && len <= end - start; len++) {
+    // For this length, scan all positions in the interval
+    for (let pos = start; pos + len <= end; pos++) {
+      let candSeq;
+      
+      if (optimizePart === 'left') {
+        if (isBIP) {
+          // BIP left (B1c) binds forward: take sequence as-is
+          candSeq = gene.substring(pos, pos + len);
+        } else {
+          // FIP left (F1c) binds as RC: take reverse complement
+          const seqAtPos = gene.substring(pos, pos + len);
+          candSeq = revcomp(seqAtPos);
+        }
+      } else {
+        if (isBIP) {
+          // BIP right (B2) binds as RC: take reverse complement
+          const seqAtPos = gene.substring(pos, pos + len);
+          candSeq = revcomp(seqAtPos);
+        } else {
+          // FIP right (F2) binds forward: take sequence as-is
+          candSeq = gene.substring(pos, pos + len);
+        }
+      }
+      
+      const cand = {
+        name: primer.name,
+        partName: partName,
+        partType: partType,
+        seq: candSeq,
+        isInner: true,
+        isSinglePart: true,
+        start: pos,
+        end: pos + len,
+        length: len,
+        info: {}
+      };
+      
+      // Validate thermodynamics
+      const therm = validatePrimerThermodynamics(cand);
+      const hp3 = checkHairpin3Prime(cand.seq);
+      const hp5 = checkHairpin5Prime(cand.seq);
+      cand.hairpin3 = hp3;
+      cand.hairpin5 = hp5;
+      cand.hasHairpin = !!(hp3 || hp5);
+      
+      // Score using single-part logic
+      let score = 100;
+      const tm = therm.info?.tm || 0;
+      const gc = therm.info?.gc || 0;
+      const dg5 = therm.info?.dg5 || 0;
+      const dg3 = therm.info?.dg3 || 0;
+      
+      // Tm is most critical
+      if (tm < tmTarget[0]) score -= (tmTarget[0] - tm) * 5;
+      if (tm > tmTarget[1]) score -= (tm - tmTarget[1]) * 5;
+      // GC content penalty
+      score -= Math.abs(gc - 50) * 0.8;
+      // End stability penalties
+      if (dg5 > -4.0) score -= (dg5 + 4.0) * 10;
+      if (dg3 > -4.0) score -= (dg3 + 4.0) * 12;
+      // Hairpin penalty
+      if (cand.hasHairpin) score -= 20;
+      
+      cand.score = Math.max(0, score);
+      cand.info = therm.info;
+      candidates.push(cand);
+    }
+  }
+  
+  // Deduplicate by sequence and keep best score per unique sequence
+  const unique = new Map();
+  candidates.forEach(c => {
+    if (!unique.has(c.seq)) {
+      unique.set(c.seq, c);
+    } else {
+      const existing = unique.get(c.seq);
+      if (c.score > existing.score) {
+        unique.set(c.seq, c);
+      }
+    }
+  });
+  
+  // Sort by score descending and return top N
+  const out = Array.from(unique.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN);
+  
+  return out;
+}
+
 // Expose optimizer to UI
 window.generatePrimerCandidates = generatePrimerCandidates;
+window.generatePartCandidates = generatePartCandidates;
 window.enumerateInnerPrimerSplits = enumerateInnerPrimerSplits;
