@@ -328,6 +328,8 @@ function populatePrimerTable(gene, primers) {
 
     const row = document.createElement("tr");
 
+    const analyzeCell = `<button class="optimize-btn" data-primer-idx="${index}">Optimize</button>`;
+
     row.innerHTML = `
       <td>${nameDisplay}</td>
       <td style="font-family: monospace; font-size: 12px;">${seqDisplay}</td>
@@ -338,6 +340,7 @@ function populatePrimerTable(gene, primers) {
       <td style="font-size: 11px;">${orientDisplay}</td>
       <td style="font-size: 11px; text-align: center;">${hairpinDisplay}</td>
       <td style="font-size: 11px;">${controlsDisplay}</td>
+      <td style="text-align:center;">${analyzeCell}</td>
     `;
 
     body.appendChild(row);
@@ -345,6 +348,7 @@ function populatePrimerTable(gene, primers) {
 
   // Attach event listeners to position inputs
   attachPositionInputListeners();
+  attachAnalyzeButtons();
 }
 
 /* -----------------------
@@ -878,3 +882,164 @@ if (document.readyState === 'loading') {
 } else {
   setupTooltips();
 }
+
+/* -----------------------
+   Optimizer UI (Analyze column + Modal)
+------------------------ */
+
+function attachAnalyzeButtons() {
+  const buttons = document.querySelectorAll('.optimize-btn');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(e.currentTarget.dataset.primerIdx, 10);
+      openOptimizerModal(idx);
+    });
+  });
+}
+
+function openOptimizerModal(primerIdx) {
+  const modal = document.getElementById('optimizer-modal');
+  const closeBtn = document.getElementById('optimizer-modal-close');
+  const tbody = document.querySelector('#optimizer-candidates-table tbody');
+  const meta = document.getElementById('optimizer-meta');
+  const startInput = document.getElementById('optimizer-start');
+  const endInput = document.getElementById('optimizer-end');
+  const topNInput = document.getElementById('optimizer-topN');
+  const runBtn = document.getElementById('optimizer-run-btn');
+  if (!modal || !tbody) return;
+  tbody.innerHTML = '';
+
+  const gene = window.currentGene;
+  const primers = window.currentPrimers;
+  const primer = primers[primerIdx];
+  meta.innerHTML = `<strong>${primer.name}</strong> &mdash; current length: ${primer.isInner ? primer.seq.length : (primer.end - primer.start)}bp`;
+
+  // Initialize defaults
+  if (startInput) startInput.value = 1;
+  if (endInput) endInput.value = gene.length;
+  if (topNInput) topNInput.value = 10;
+
+  // Initial candidate render
+  const initial = getOptimizerSettings(gene);
+  renderCandidates(primerIdx, initial);
+
+  // open modal
+  modal.classList.add('active');
+  // close events
+  if (closeBtn) closeBtn.onclick = closeOptimizerModal;
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeOptimizerModal();
+  });
+
+  // run events
+  if (runBtn) {
+    runBtn.onclick = () => {
+      const opts = getOptimizerSettings(gene);
+      renderCandidates(primerIdx, opts);
+    };
+  }
+}
+
+function getOptimizerSettings(gene) {
+  const startInput = document.getElementById('optimizer-start');
+  const endInput = document.getElementById('optimizer-end');
+  const topNInput = document.getElementById('optimizer-topN');
+  let start = parseInt(startInput?.value || '1', 10);
+  let end = parseInt(endInput?.value || String(gene.length), 10);
+  let topN = parseInt(topNInput?.value || '10', 10);
+  if (isNaN(start) || start < 1) start = 1;
+  if (isNaN(end) || end > gene.length) end = gene.length;
+  if (start > end) { const t = start; start = end; end = t; }
+  if (isNaN(topN) || topN < 1) topN = 10;
+  return { start, end, topN };
+}
+
+function renderCandidates(primerIdx, opts) {
+  const tbody = document.querySelector('#optimizer-candidates-table tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const gene = window.currentGene;
+  const primers = window.currentPrimers;
+  const primer = primers[primerIdx];
+
+  // convert to 0-based for generator
+  const options = { start: opts.start - 1, end: opts.end, topN: opts.topN };
+  const candidates = window.generatePrimerCandidates(primer, gene, options) || [];
+
+  if (candidates.length === 0) {
+    const empty = document.createElement('tr');
+    empty.innerHTML = `<td colspan="7" style="text-align:center; padding:12px; color:#999;">No candidates found in the selected interval</td>`;
+    tbody.appendChild(empty);
+    return;
+  }
+
+  candidates.forEach((cand, i) => {
+    const seqDisplay = cand.isInner
+      ? `${cand.leftType}=${cand.left} ⊕ ${cand.rightType}=${cand.right}`
+      : cand.seq;
+    const gc = cand.isInner ? `${cand.info.leftGC.toFixed(1)}% / ${cand.info.rightGC.toFixed(1)}%`
+                            : `${cand.info.gc.toFixed(1)}%`;
+    const tm = cand.isInner ? `${cand.info.leftTm.toFixed(1)}° / ${cand.info.rightTm.toFixed(1)}°`
+                            : `${cand.info.tm.toFixed(1)}°`;
+    const dg = cand.isInner ? `${cand.info.left5DG.toFixed(1)} / ${cand.info.left3DG.toFixed(1)} | ${cand.info.right5DG.toFixed(1)} / ${cand.info.right3DG.toFixed(1)}`
+                            : `${cand.info.dg5.toFixed(1)} / ${cand.info.dg3.toFixed(1)}`;
+    const hp = cand.hairpin3 && cand.hairpin5 ? '3′+5′' : (cand.hairpin3 ? '3′' : (cand.hairpin5 ? '5′' : 'No'));
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family: monospace; font-size: 12px;">${seqDisplay}</td>
+      <td style="text-align:center;">${gc}</td>
+      <td style="text-align:center;">${tm}</td>
+      <td style="text-align:center;">${dg}</td>
+      <td style="text-align:center;">${hp}</td>
+      <td style="text-align:center; font-weight:bold; color:${cand.score >= 85 ? 'green' : (cand.score >= 70 ? '#e69500' : 'red')};">${cand.score.toFixed(1)}</td>
+      <td style="text-align:center;"><button class="candidate-accept-btn" data-idx="${primerIdx}" data-cand="${i}">Accept</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // attach accept handlers
+  const acceptBtns = tbody.querySelectorAll('.candidate-accept-btn');
+  acceptBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pIdx = parseInt(e.currentTarget.dataset.idx, 10);
+      const cIdx = parseInt(e.currentTarget.dataset.cand, 10);
+      applyCandidate(pIdx, candidates[cIdx]);
+      closeOptimizerModal();
+    });
+  });
+}
+
+function closeOptimizerModal() {
+  const modal = document.getElementById('optimizer-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+function applyCandidate(primerIdx, cand) {
+  const gene = window.currentGene;
+  const primers = window.currentPrimers;
+  const p = primers[primerIdx];
+  if (cand.isInner) {
+    p.isInner = true;
+    p.seq = cand.seq;
+    p.left = cand.left; p.right = cand.right;
+    p.leftType = cand.leftType; p.rightType = cand.rightType;
+    p.leftStart = cand.leftStart; p.leftEnd = cand.leftEnd;
+    p.rightStart = cand.rightStart; p.rightEnd = cand.rightEnd;
+  } else {
+    p.isInner = false;
+    p.seq = cand.seq;
+    p.start = cand.start; p.end = cand.end;
+    p.orientation = cand.orientation;
+  }
+  // Recalculate hairpins and dimers, then re-render
+  const hp3 = checkHairpin3Prime(p.seq);
+  const hp5 = checkHairpin5Prime(p.seq);
+  p.hairpin3 = hp3; p.hairpin5 = hp5; p.hasHairpin = !!(hp3 || hp5);
+  const dimers = checkAllDimers(primers);
+  displaySequence(gene, primers, window.exonJunctions);
+  populatePrimerTable(gene, primers);
+  populateDimerTable(dimers);
+}
+
+// (Removed collapsible optimizer panel; modal popup is the single UX)

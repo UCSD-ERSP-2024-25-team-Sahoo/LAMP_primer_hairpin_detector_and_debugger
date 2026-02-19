@@ -582,3 +582,198 @@ function attachPrimerPositions(gene, primers) {
   const dimers = checkAllDimers(primers);
   return dimers;
 }
+
+/* -----------------------
+   Optimizer Candidate Generation (MVP)
+   - Enumerates inner primer splits (FIP/BIP)
+   - Generates small adjustments for regular primers
+------------------------ */
+
+// Enumerate all valid splits for an inner primer across right-part lengths
+function enumerateInnerPrimerSplits(innerSeq, gene, isFIP) {
+  innerSeq = innerSeq.toUpperCase();
+  gene = gene.toUpperCase();
+  const results = [];
+
+  for (let rightLen = 15; rightLen <= 35 && rightLen < innerSeq.length - 10; rightLen++) {
+    const leftPart = innerSeq.slice(0, innerSeq.length - rightLen);
+    const rightPart = innerSeq.slice(innerSeq.length - rightLen);
+
+    // Case A: right binds forward; left RC binds
+    const rightIdx = gene.indexOf(rightPart);
+    const leftIdx = gene.indexOf(revcomp(leftPart));
+    if (rightIdx !== -1 && leftIdx !== -1) {
+      results.push({
+        left: leftPart,
+        right: rightPart,
+        leftType: isFIP ? 'F1c' : 'B1c',
+        rightType: isFIP ? 'F2' : 'B2',
+        leftStart: leftIdx,
+        leftEnd: leftIdx + leftPart.length,
+        rightStart: rightIdx,
+        rightEnd: rightIdx + rightPart.length,
+      });
+      continue; // prefer forward-right when available
+    }
+
+    // Case B: left binds forward; right RC binds (reversed binding)
+    const leftIdx2 = gene.indexOf(leftPart);
+    const rightIdx2 = gene.indexOf(revcomp(rightPart));
+    if (leftIdx2 !== -1 && rightIdx2 !== -1) {
+      // Normalize output to standard types by swapping parts
+      // so that left corresponds to RC-bound component (F1c/B1c) and right to forward-bound (F2/B2)
+      results.push({
+        left: rightPart,
+        right: leftPart,
+        leftType: isFIP ? 'F1c' : 'B1c',
+        rightType: isFIP ? 'F2' : 'B2',
+        leftStart: rightIdx2,
+        leftEnd: rightIdx2 + rightPart.length,
+        rightStart: leftIdx2,
+        rightEnd: leftIdx2 + leftPart.length,
+      });
+    }
+  }
+
+  return results;
+}
+
+// Compute a simple score for a regular primer candidate based on LAMP rules
+function scoreRegularCandidate(name, info, hasHairpin) {
+  const nm = name.toUpperCase();
+  const targetTmRange = (nm === 'F3' || nm === 'B3' || nm === 'F2' || nm === 'B2') ? [59, 61]
+                     : (nm.includes('LOOP') || nm === 'LF' || nm === 'LB') ? [64, 66]
+                     : [59, 61];
+  const tm = info.tm || 0;
+  const gc = info.gc || 0;
+  const dg5 = info.dg5 || 0;
+  const dg3 = info.dg3 || 0;
+
+  let score = 100;
+  // Tm deviation penalty
+  if (tm < targetTmRange[0]) score -= (targetTmRange[0] - tm) * 5;
+  if (tm > targetTmRange[1]) score -= (tm - targetTmRange[1]) * 5;
+  // GC deviation from 50%
+  score -= Math.abs(gc - 50) * 0.8;
+  // End stability penalties (prefer <= -4.0)
+  if (dg5 > -4.0) score -= (dg5 + 4.0) * 10;
+  if (dg3 > -4.0) score -= (dg3 + 4.0) * 12; // 3' more important
+  // Hairpin penalty
+  if (hasHairpin) score -= 20;
+  return score;
+}
+
+// Compute a simple score for inner primer candidate based on part orientations
+function scoreInnerCandidate(isBIP, info, hasHairpin) {
+  const leftTm = info.leftTm || 0;
+  const rightTm = info.rightTm || 0;
+  const leftGC = info.leftGC || 0;
+  const rightGC = info.rightGC || 0;
+  const left5DG = info.left5DG || 0;
+  const left3DG = info.left3DG || 0;
+  const right5DG = info.right5DG || 0;
+  const right3DG = info.right3DG || 0;
+
+  // Targets depend on primer type (test mode BIP: left Fwd 59-61, right RC 64-66)
+  const leftRange = isBIP ? [59, 61] : [64, 66];
+  const rightRange = isBIP ? [64, 66] : [59, 61];
+
+  let score = 100;
+  // Tm penalties
+  if (leftTm < leftRange[0]) score -= (leftRange[0] - leftTm) * 4;
+  if (leftTm > leftRange[1]) score -= (leftTm - leftRange[1]) * 4;
+  if (rightTm < rightRange[0]) score -= (rightRange[0] - rightTm) * 4;
+  if (rightTm > rightRange[1]) score -= (rightTm - rightRange[1]) * 4;
+  // GC deviations
+  score -= Math.abs(leftGC - 50) * 0.6;
+  score -= Math.abs(rightGC - 50) * 0.6;
+  // End stabilities
+  if (left5DG > -4.0) score -= (left5DG + 4.0) * 8;
+  if (left3DG > -4.0) score -= (left3DG + 4.0) * 10;
+  if (right5DG > -4.0) score -= (right5DG + 4.0) * 8;
+  if (right3DG > -4.0) score -= (right3DG + 4.0) * 10;
+  // Hairpin penalty
+  if (hasHairpin) score -= 15;
+  return score;
+}
+
+function generatePrimerCandidates(primer, gene, options) {
+  gene = gene.toUpperCase();
+  const candidates = [];
+  const start = options && typeof options.start === 'number' ? Math.max(0, options.start) : 0;
+  const end = options && typeof options.end === 'number' ? Math.min(gene.length, options.end) : gene.length;
+  const topN = options && typeof options.topN === 'number' ? Math.max(1, options.topN) : 20;
+
+  if (primer.name && (primer.name.toUpperCase() === 'FIP' || primer.name.toUpperCase() === 'BIP')) {
+    const isFIP = primer.name.toUpperCase() === 'FIP';
+    const isBIP = primer.name.toUpperCase() === 'BIP';
+    const splits = enumerateInnerPrimerSplits(primer.seq, gene, isFIP);
+    splits.forEach(s => {
+      // Filter by interval: both parts start within [start, end)
+      if (s.leftStart < start || s.leftStart >= end) return;
+      if (s.rightStart < start || s.rightStart >= end) return;
+      const cand = {
+        name: primer.name,
+        seq: s.left + s.right,
+        isInner: true,
+        left: s.left,
+        right: s.right,
+        leftType: s.leftType,
+        rightType: s.rightType,
+        leftStart: s.leftStart,
+        leftEnd: s.leftEnd,
+        rightStart: s.rightStart,
+        rightEnd: s.rightEnd,
+      };
+      const therm = validatePrimerThermodynamics(cand);
+      const hp3 = checkHairpin3Prime(cand.seq);
+      const hp5 = checkHairpin5Prime(cand.seq);
+      cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
+      cand.score = scoreInnerCandidate(isBIP, therm.info, cand.hasHairpin);
+      cand.info = therm.info;
+      candidates.push(cand);
+    });
+  } else {
+    // Regular primer: scan the selected interval using current length
+    const nm = primer.name.toUpperCase();
+    const isReverse = primer.orientation === 'reverse (RC)';
+    const curLen = (primer.start !== -1 && primer.end !== -1) ? (primer.end - primer.start) : primer.seq.length;
+    for (let s = start; s + curLen <= end; s++) {
+      const newStart = s;
+      const newEnd = s + curLen;
+      let seqExtract = gene.substring(newStart, newEnd);
+      const seqFinal = isReverse ? revcomp(seqExtract) : seqExtract;
+      const cand = {
+        name: primer.name,
+        seq: seqFinal,
+        isInner: false,
+        start: newStart,
+        end: newEnd,
+        orientation: primer.orientation,
+      };
+      const therm = validatePrimerThermodynamics(cand);
+      const hp3 = checkHairpin3Prime(cand.seq);
+      const hp5 = checkHairpin5Prime(cand.seq);
+      cand.hairpin3 = hp3; cand.hairpin5 = hp5; cand.hasHairpin = !!(hp3 || hp5);
+      cand.score = scoreRegularCandidate(nm, therm.info, cand.hasHairpin);
+      cand.info = therm.info;
+      candidates.push(cand);
+    }
+  }
+
+  // Sort by score descending and deduplicate by sequence
+  const unique = new Map();
+  candidates.forEach(c => {
+    if (!unique.has(c.seq)) unique.set(c.seq, c);
+    else {
+      const existing = unique.get(c.seq);
+      if (c.score > existing.score) unique.set(c.seq, c);
+    }
+  });
+  const out = Array.from(unique.values()).sort((a,b) => b.score - a.score).slice(0, topN);
+  return out;
+}
+
+// Expose optimizer to UI
+window.generatePrimerCandidates = generatePrimerCandidates;
+window.enumerateInnerPrimerSplits = enumerateInnerPrimerSplits;

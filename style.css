@@ -435,3 +435,92 @@ main {
   border-radius: 4px;
   padding: 2px 4px;
 }
+
+/* ----------------------------------------------------------------
+   OPTIMIZER BUTTONS
+   ---------------------------------------------------------------- */
+.optimize-btn {
+  padding: 6px 10px;
+  background: #3a6ea5;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.optimize-btn:hover {
+  background: #2e5481;
+}
+
+/* ----------------------------------------------------------------
+   OPTIMIZER MODAL (Popup)
+   ---------------------------------------------------------------- */
+#optimizer-modal {
+  display: none; /* shown via JS */
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 10001;
+}
+
+#optimizer-modal.active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#optimizer-candidates-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#optimizer-candidates-table th, #optimizer-candidates-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.modal-content {
+  background: white;
+  width: 900px;
+  max-width: 95vw;
+  border-radius: 8px;
+  box-shadow: 0px 10px 30px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ddd;
+}
+
+.modal-body {
+  padding: 12px 16px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: #333;
+}
+
+.candidate-accept-btn {
+  padding: 6px 10px;
+  background: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.candidate-accept-btn:hover {
+  background: #1b5e20;
+}
